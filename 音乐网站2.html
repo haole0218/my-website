@@ -1,0 +1,2644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的音乐播放器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f0f1a; color: #e0e0e0;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+  }
+  .container { width: 100%; max-width: 600px; padding: 24px 20px 160px; }
+  .storage-warn { display: none; width: 100%; max-width: 600px; background: #3a1e1e; color: #ffb3b3; border-bottom: 1px solid #5a2a2a; padding: 10px 20px; font-size: 12px; text-align: center; cursor: pointer; margin-bottom: 12px; border-radius: 0 0 8px 8px; }
+  .storage-warn.show { display: block; }
+  .storage-warn strong { color: #ff4d6d; }
+  .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+  h1 { font-size: 20px; color: #1db954; cursor: default; user-select: none; font-weight: 700; }
+  .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .vip-badge { padding: 5px 12px; border-radius: 12px; border: none; font-size: 12px; cursor: pointer; font-weight: 600; transition: all .2s; white-space: nowrap; }
+  .vip-badge.free { background: #2a2a3e; color: #888; }
+  .vip-badge.vip { background: #1db954; color: #000; }
+  .vip-badge.forever { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #000; }
+  .menu-wrap { position: relative; }
+  .menu-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #333; background: #1a1a2e; color: #aaa; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; padding: 0; transition: all .2s; line-height: 1; font-weight: 700; }
+  .menu-btn:hover { border-color: #1db954; color: #1db954; }
+  .menu-dropdown { position: absolute; top: calc(100% + 8px); right: 0; min-width: 200px; background: #1a1a2e; border: 1px solid #333; border-radius: 10px; padding: 6px; display: none; box-shadow: 0 8px 24px rgba(0,0,0,.55); z-index: 50; }
+  .menu-dropdown.show { display: block; }
+  .menu-dropdown button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 14px; background: transparent; border: none; color: #ccc; font-size: 14px; text-align: left; cursor: pointer; border-radius: 6px; transition: all .15s; font-family: inherit; }
+  .menu-dropdown button:hover { background: #26263a; color: #1db954; }
+  .menu-dropdown .menu-tick { font-size: 11px; color: #1db954; margin-left: 8px; display: none; }
+  .menu-dropdown button.on .menu-tick { display: inline; }
+  .search-bar { display: flex; gap: 10px; margin-bottom: 14px; }
+  .search-bar input { flex: 1; padding: 13px 18px; border-radius: 24px; border: 1px solid #26263a; background: #17172b; color: #fff; font-size: 15px; outline: none; transition: border-color .2s; }
+  .search-bar input:focus { border-color: #1db954; }
+  .search-bar input::placeholder { color: #555; }
+  .search-bar button { padding: 13px 22px; border-radius: 24px; border: none; background: #1db954; color: #000; font-weight: 600; cursor: pointer; font-size: 14px; transition: background .2s; }
+  .search-bar button:hover { background: #1ed760; }
+  .search-bar button:disabled { background: #26263a; color: #555; cursor: not-allowed; }
+  .source-tabs { display: flex; gap: 6px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 4px; }
+  .source-tabs::-webkit-scrollbar { display: none; }
+  .source-tabs button { padding: 6px 14px; border-radius: 16px; border: 1px solid #26263a; background: transparent; color: #888; cursor: pointer; font-size: 12.5px; white-space: nowrap; transition: all .2s; }
+  .source-tabs button.active { background: #1db954; color: #000; border-color: #1db954; }
+  .source-tabs button:hover:not(.active) { border-color: #444; color: #bbb; }
+  .status { text-align: center; padding: 28px 20px; color: #666; font-size: 14px; }
+  .status.error { color: #e74c3c; }
+  .result-info { display: none; font-size: 12px; color: #666; padding: 0 4px 12px; text-align: left; }
+  .result-info.show { display: block; }
+  .result-info .count { color: #1db954; font-weight: 700; }
+  .song-list { list-style: none; }
+  .song-item { display: flex; align-items: center; gap: 12px; padding: 14px 14px; border-radius: 12px; cursor: pointer; transition: background .15s; background: #14142a; margin-bottom: 4px; }
+  .song-item:hover { background: #1a1a2e; }
+  .song-item.active { background: #1db95415; border-left: 3px solid #1db954; }
+  .song-item .info { flex: 1; min-width: 0; }
+  .song-item .info .title { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+  .song-item .info .artist { font-size: 12px; color: #777; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .buy-btn { padding: 6px 12px; border-radius: 12px; border: 1px solid #1db95440; background: rgba(29,185,84,.08); color: #1db954; font-size: 11.5px; font-weight: 700; cursor: pointer; flex-shrink: 0; transition: all .2s; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .buy-btn:hover { background: #1db954; color: #000; border-color: #1db954; }
+  .unlocked-mark { padding: 4px 10px; border-radius: 12px; background: rgba(29,185,84,.12); color: #1db954; font-size: 11px; font-weight: 700; flex-shrink: 0; user-select: none; }
+  .vip-mark { padding: 4px 9px; border-radius: 12px; background: linear-gradient(135deg, #ffd700, #ff8c00); color: #000; font-size: 10px; font-weight: 700; flex-shrink: 0; user-select: none; }
+  .quality-mark { padding: 3px 8px; border-radius: 10px; background: rgba(106,158,255,.12); color: #6a9eff; font-size: 10px; font-weight: 700; flex-shrink: 0; user-select: none; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .load-more-wrap { text-align: center; padding: 22px 0 10px; }
+  .load-more-btn { padding: 10px 34px; border-radius: 20px; border: 1px solid #1db95450; background: transparent; color: #1db954; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
+  .load-more-btn:hover:not(:disabled) { background: #1db954; color: #000; border-color: #1db954; }
+  .load-more-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .load-more-hint { display: block; margin-top: 8px; font-size: 11px; color: #555; }
+  .player-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #12122a; border-top: 1px solid #1e1e34; padding: 14px 18px 16px; display: none; z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,.4); }
+  .player-bar.show { display: block; }
+  .player-bar .player-inner { max-width: 600px; margin: 0 auto; }
+  .player-top { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .player-info { flex: 1; min-width: 0; cursor: pointer; }
+  .player-info .t { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+  .player-info .a { font-size: 12px; color: #777; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sleep-badge { display: none; padding: 3px 9px; background: rgba(255,77,109,.15); color: #ff4d6d; border-radius: 10px; font-size: 11px; font-weight: 700; font-family: 'SF Mono', Menlo, Consolas, monospace; flex-shrink: 0; border: 1px solid rgba(255,77,109,.3); white-space: nowrap; }
+  .spatial-badge { display: none; padding: 3px 9px; background: rgba(106,158,255,.15); color: #6a9eff; border-radius: 10px; font-size: 11px; font-weight: 700; flex-shrink: 0; border: 1px solid rgba(106,158,255,.3); white-space: nowrap; }
+  .spatial-badge.on { display: inline-block; }
+  .hifi-badge { display: none; padding: 3px 9px; background: rgba(255,215,0,.15); color: #ffd700; border-radius: 10px; font-size: 10px; font-weight: 700; flex-shrink: 0; border: 1px solid rgba(255,215,0,.3); font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .hifi-badge.on { display: inline-block; }
+  .player-controls { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
+  .ctrl-btn { width: 36px; height: 36px; padding: 0; border-radius: 50%; background: #1a1a2e; border: 1px solid #26263a; color: #ccc; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all .2s; line-height: 1; }
+  .ctrl-btn:hover:not(:disabled) { border-color: #1db954; color: #1db954; }
+  .ctrl-btn:disabled { opacity: .3; cursor: not-allowed; }
+  .ctrl-btn.primary { width: 42px; height: 42px; background: #1db954; color: #000; border-color: #1db954; font-size: 15px; font-weight: 700; }
+  .ctrl-btn.primary:hover { background: #1ed760; color: #000; }
+  .ctrl-btn.gift { background: linear-gradient(135deg, #ff4d6d, #ff8c00); color: #fff; border: none; font-size: 15px; }
+  .ctrl-btn.gift:hover { transform: scale(1.08); color: #fff; }
+  .player-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ptime { font-size: 11px; color: #666; font-family: 'SF Mono', Menlo, Consolas, monospace; min-width: 34px; text-align: center; flex-shrink: 0; }
+  .pbar { flex: 1; height: 4px; background: #222; border-radius: 2px; cursor: pointer; position: relative; overflow: hidden; }
+  .pbar:hover { height: 5px; }
+  .pfill { height: 100%; width: 0%; background: #1db954; border-radius: 2px; transition: width .12s linear; pointer-events: none; }
+  .lyric-line { font-size: 12px; color: #1db954; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; min-height: 16px; text-align: center; padding: 2px 0; transition: color .2s; }
+  .lyric-line:hover { color: #1ed760; text-decoration: underline; }
+  .trial-tag { display: inline-block; margin-top: 6px; font-size: 11px; background: #ff4d6d20; color: #ff4d6d; padding: 3px 9px; border-radius: 8px; text-align: center; }
+  audio { display: none; }
+  .back-to-top { position: fixed; right: 20px; bottom: 170px; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #1db95440; background: linear-gradient(135deg, #1a1a2e, #20203a); color: #1db954; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; z-index: 90; opacity: 0; transform: translateY(20px) scale(.85); pointer-events: none; transition: opacity .3s, transform .3s, box-shadow .2s, background .2s; box-shadow: 0 4px 16px rgba(0,0,0,.5); backdrop-filter: blur(8px); }
+  .back-to-top.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  .back-to-top:hover { background: #1db954; color: #000; border-color: #1db954; box-shadow: 0 6px 22px rgba(29,185,84,.5); transform: translateY(-2px) scale(1.05); }
+  .back-to-top svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 2.5; fill: none; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,.78); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+  .modal.show { display: flex; }
+  .modal-box { background: #1a1a2e; border-radius: 16px; padding: 26px; width: 100%; max-width: 420px; border: 1px solid #2a2a42; max-height: 88vh; overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,.5); }
+  .modal-box h2 { font-size: 17px; color: #1db954; margin-bottom: 6px; font-weight: 700; }
+  .modal-box .hint { font-size: 12px; color: #777; margin-bottom: 18px; }
+  .modal-box input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #2a2a42; background: #0f0f1a; color: #fff; font-size: 15px; outline: none; letter-spacing: 1px; text-align: center; font-family: monospace; transition: border-color .2s; }
+  .modal-box input:focus { border-color: #1db954; }
+  .modal-box input.shake { animation: shake .35s; border-color: #e74c3c; }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+  .vip-info { background: #0f0f1a; border-radius: 12px; padding: 16px; margin-bottom: 18px; text-align: center; border: 1px solid #1e1e34; }
+  .vip-info-line { font-size: 14px; line-height: 1.8; }
+  .vip-info-line.muted { font-size: 12px; color: #666; }
+  .vip-info-line.green { color: #1db954; font-weight: 600; }
+  .vip-info-line.gold { color: #ffd700; font-weight: 600; }
+  .vip-info-countdown { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 18px; letter-spacing: 1px; color: #1db954; margin-top: 4px; }
+  .pay-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #1e1e34; }
+  .pay-tabs button { flex: 1; padding: 11px; background: transparent; border: none; color: #666; cursor: pointer; font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .2s; font-family: inherit; }
+  .pay-tabs button.active { color: #1db954; border-bottom-color: #1db954; }
+  .pay-tabs button:hover:not(.active) { color: #999; }
+  .bank-card { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #1e3c72 100%); border-radius: 16px; padding: 20px; margin-bottom: 18px; position: relative; box-shadow: 0 8px 24px rgba(30,60,114,.45); color: #fff; overflow: hidden; }
+  .bank-card::before { content: ''; position: absolute; top: -50%; right: -20%; width: 200px; height: 200px; background: radial-gradient(circle, rgba(255,255,255,.15), transparent 70%); pointer-events: none; }
+  .bank-card-label { font-size: 11px; color: rgba(255,255,255,.75); letter-spacing: 2px; text-transform: uppercase; }
+  .bank-card-no { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 19px; letter-spacing: 2px; margin-top: 12px; user-select: all; }
+  .bank-card-balance-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 20px; }
+  .bank-balance-label { font-size: 11px; color: rgba(255,255,255,.75); letter-spacing: 1px; }
+  .bank-balance { font-size: 24px; font-weight: 700; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .bank-verify-box { background: #0f0f1a; border-radius: 12px; padding: 18px; border: 1px solid #1e1e34; margin-bottom: 16px; }
+  .bank-verify-box .field { margin-bottom: 14px; }
+  .bank-verify-box .field:last-child { margin-bottom: 0; }
+  .bank-verify-box .field-label { font-size: 12px; color: #888; margin-bottom: 8px; }
+  .bank-verify-box input { width: 100%; padding: 11px 13px; border-radius: 9px; border: 1px solid #2a2a42; background: #17172b; color: #fff; font-size: 14px; outline: none; letter-spacing: 1px; font-family: monospace; text-align: left; transition: border-color .2s; }
+  .bank-verify-box input:focus { border-color: #1db954; }
+  .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .pay-option { position: relative; background: #0f0f1a; border: 1px solid #2a2a42; border-radius: 12px; padding: 14px 14px; cursor: pointer; transition: all .2s; display: flex; flex-direction: column; gap: 4px; user-select: none; }
+  .pay-option:hover { border-color: #1db954; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(29,185,84,.15); }
+  .pay-option.premium { grid-column: 1 / -1; background: linear-gradient(135deg, #2a1e0a, #3a2a10); border-color: #5a4a1a; }
+  .pay-option.premium:hover { border-color: #ffd700; box-shadow: 0 4px 12px rgba(255,215,0,.2); }
+  .pay-option.insufficient { opacity: .55; filter: grayscale(.4); }
+  .pay-option.insufficient::after { content: '余额不足'; position: absolute; top: 8px; right: 8px; background: #ff4d6d; color: #fff; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
+  .pay-option.locked { opacity: .35; filter: grayscale(1); }
+  .pay-option.locked::after { content: '已终身'; position: absolute; top: 8px; right: 8px; background: #ffd700; color: #000; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
+  .pay-option .po-name { font-size: 13px; font-weight: 600; color: #e0e0e0; display: flex; align-items: center; }
+  .pay-option.premium .po-name { color: #ffd700; font-size: 14px; }
+  .pay-option .po-tag { display: inline-block; padding: 1px 6px; border-radius: 6px; font-size: 9px; font-weight: 700; background: linear-gradient(90deg, #ffd700, #ff8c00); color: #000; margin-left: 6px; }
+  .pay-option .po-price-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .pay-option .po-price { font-size: 17px; font-weight: 700; font-family: 'SF Mono', Menlo, Consolas, monospace; color: #1db954; }
+  .pay-option.premium .po-price { color: #ffd700; font-size: 20px; }
+  .pay-option .po-orig { font-size: 11px; color: #666; text-decoration: line-through; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .pay-option .po-desc { font-size: 10px; color: #666; margin-top: 2px; }
+  .pay-option.premium .po-desc { color: #b8a05a; }
+  .wallet-balance-card { background: linear-gradient(135deg, #1e3c72, #2a5298); border-radius: 14px; padding: 18px; margin-bottom: 18px; text-align: center; color: #fff; position: relative; overflow: hidden; }
+  .wallet-balance-card::before { content: ''; position: absolute; top: -40%; right: -20%; width: 180px; height: 180px; background: radial-gradient(circle, rgba(255,255,255,.2), transparent 70%); pointer-events: none; }
+  .wallet-balance-card .label { font-size: 11px; opacity: .8; letter-spacing: 2px; }
+  .wallet-balance-card .amount { font-size: 32px; font-weight: 700; margin-top: 6px; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .wallet-balance-card .sub { font-size: 11px; opacity: .7; margin-top: 6px; }
+  .wallet-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid #1e1e34; overflow-x: auto; }
+  .wallet-tabs::-webkit-scrollbar { display: none; }
+  .wallet-tabs button { flex: 1; min-width: 70px; padding: 11px 6px; background: transparent; border: none; color: #666; cursor: pointer; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .2s; white-space: nowrap; font-family: inherit; }
+  .wallet-tabs button.active { color: #1db954; border-bottom-color: #1db954; }
+  .wallet-tabs button:hover:not(.active) { color: #999; }
+  .wallet-panel { display: none; }
+  .wallet-panel.active { display: block; }
+  .checkin-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 18px; }
+  .checkin-day { aspect-ratio: 1; border-radius: 9px; border: 1px solid #1e1e34; background: #0f0f1a; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; color: #555; transition: all .2s; }
+  .checkin-day.done { background: linear-gradient(135deg, #1db954, #16a34a); border-color: #1db954; color: #000; font-weight: 700; }
+  .checkin-day.today { border-color: #1db954; color: #1db954; box-shadow: 0 0 12px rgba(29,185,84,.4); }
+  .checkin-day .d { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+  .checkin-day .coin { font-size: 9px; }
+  .checkin-info { background: #0f0f1a; border-radius: 12px; padding: 16px; margin-bottom: 16px; text-align: center; border: 1px solid #1e1e34; }
+  .checkin-info .row { font-size: 13px; line-height: 1.9; color: #ccc; }
+  .checkin-info .green { color: #1db954; font-weight: 600; }
+  .blind-box-display { width: 140px; height: 140px; margin: 20px auto; border-radius: 20px; background: linear-gradient(135deg, #ff4d6d, #ff8c00); display: flex; align-items: center; justify-content: center; font-size: 64px; color: #fff; box-shadow: 0 8px 32px rgba(255,77,109,.4); transition: all .3s; user-select: none; }
+  .blind-box-display.spinning { animation: boxShake .1s infinite; }
+  @keyframes boxShake { 0%,100% { transform: rotate(-3deg) scale(1.02); } 50% { transform: rotate(3deg) scale(1.02); } }
+  .blind-box-display.opened { animation: boxOpen .5s; }
+  @keyframes boxOpen { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+  .blind-box-display.bless { background: linear-gradient(135deg, #ffd700, #ff8c00); box-shadow: 0 8px 32px rgba(255,215,0,.4); }
+  .blind-box-result { text-align: center; padding: 16px; border-radius: 12px; background: #0f0f1a; border: 1px solid #1e1e34; margin-top: 14px; font-size: 14px; min-height: 52px; display: flex; align-items: center; justify-content: center; transition: all .3s; line-height: 1.6; }
+  .blind-box-result.gold { border-color: #ffd700; color: #ffd700; font-weight: 700; }
+  .blind-box-result.green { border-color: #1db954; color: #1db954; font-weight: 700; }
+  .blind-box-result.gray { color: #666; }
+  .blind-pool { margin-top: 18px; padding: 14px; background: #0f0f1a; border-radius: 10px; font-size: 11px; color: #888; line-height: 1.9; }
+  .blind-pool .head { color: #666; margin-bottom: 6px; }
+  .achievements-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ach-item { background: #0f0f1a; border: 1px solid #1e1e34; border-radius: 12px; padding: 14px 12px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; position: relative; overflow: hidden; transition: all .3s; }
+  .ach-item.unlocked { border-color: #ffd700; background: linear-gradient(135deg, #2a1e0a, #0f0f1a); box-shadow: 0 4px 16px rgba(255,215,0,.15); }
+  .ach-item .icon { font-size: 28px; filter: grayscale(1); opacity: .4; }
+  .ach-item.unlocked .icon { filter: none; opacity: 1; animation: achPop .4s; }
+  @keyframes achPop { 0% { transform: scale(.5); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  .ach-item .name { font-size: 12px; font-weight: 600; color: #888; }
+  .ach-item.unlocked .name { color: #ffd700; }
+  .ach-item .desc { font-size: 10px; color: #555; line-height: 1.4; }
+  .ach-item.unlocked .desc { color: #b8a05a; }
+  .ach-item .lock-mark { position: absolute; top: 6px; right: 6px; font-size: 10px; color: #444; }
+  .ach-item.unlocked .lock-mark { color: #ffd700; }
+  .gift-list { max-height: 340px; overflow-y: auto; }
+  .gift-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; background: #0f0f1a; margin-bottom: 6px; border-left: 3px solid #ff4d6d; }
+  .gift-item .rank { font-size: 14px; font-weight: 700; width: 24px; text-align: center; color: #666; }
+  .gift-item.top1 { border-left-color: #ffd700; }
+  .gift-item.top1 .rank { color: #ffd700; font-size: 16px; }
+  .gift-item.top2 { border-left-color: #c0c0c0; }
+  .gift-item.top2 .rank { color: #c0c0c0; }
+  .gift-item.top3 { border-left-color: #cd7f32; }
+  .gift-item.top3 .rank { color: #cd7f32; }
+  .gift-item .song { flex: 1; min-width: 0; }
+  .gift-item .song .t { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gift-item .song .a { font-size: 11px; color: #666; margin-top: 2px; }
+  .gift-item .amt { font-size: 14px; font-weight: 700; color: #ff4d6d; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .gift-empty { text-align: center; padding: 34px; color: #555; font-size: 13px; }
+  .gift-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .gift-opt { padding: 14px 6px; border-radius: 10px; border: 1px solid #2a2a42; background: #0f0f1a; cursor: pointer; transition: all .2s; text-align: center; user-select: none; }
+  .gift-opt:hover { border-color: #ff4d6d; box-shadow: 0 4px 12px rgba(255,77,109,.2); transform: translateY(-1px); }
+  .gift-opt .emoji { font-size: 22px; }
+  .gift-opt .price { font-size: 14px; font-weight: 700; color: #ff4d6d; font-family: 'SF Mono', Menlo, Consolas, monospace; margin-top: 6px; }
+  .sleep-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+  .sleep-options button { padding: 14px; border-radius: 10px; border: 1px solid #2a2a42; background: #0f0f1a; color: #ccc; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; font-family: inherit; }
+  .sleep-options button:hover { border-color: #1db954; color: #1db954; }
+  .sleep-options button.active { background: #1db954; color: #000; border-color: #1db954; }
+  .sleep-custom { display: flex; gap: 8px; margin-bottom: 16px; }
+  .sleep-custom input { flex: 1; padding: 11px 14px; border-radius: 10px; border: 1px solid #2a2a42; background: #0f0f1a; color: #fff; font-size: 14px; outline: none; text-align: center; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .sleep-status { text-align: center; font-size: 13px; color: #666; padding: 12px; background: #0f0f1a; border-radius: 10px; border: 1px solid #1e1e34; margin-bottom: 16px; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .sleep-status.active { color: #1db954; background: rgba(29,185,84,.08); border-color: rgba(29,185,84,.25); font-weight: 600; }
+  .spatial-switch-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: #0f0f1a; border-radius: 12px; border: 1px solid #1e1e34; margin-bottom: 14px; }
+  .spatial-switch-row .label { font-size: 14px; font-weight: 600; color: #e0e0e0; }
+  .spatial-switch-row .sub { font-size: 11px; color: #666; margin-top: 4px; }
+  .toggle-switch { position: relative; width: 48px; height: 26px; flex-shrink: 0; cursor: pointer; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-switch .slider { position: absolute; inset: 0; background: #26263a; border-radius: 26px; transition: .3s; }
+  .toggle-switch .slider::before { content: ''; position: absolute; width: 20px; height: 20px; left: 3px; top: 3px; background: #888; border-radius: 50%; transition: .3s; }
+  .toggle-switch input:checked + .slider { background: #1db954; }
+  .toggle-switch input:checked + .slider::before { transform: translateX(22px); background: #000; }
+  .spatial-mode-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .spatial-mode-btn { padding: 12px 6px; border-radius: 10px; border: 1px solid #2a2a42; background: #0f0f1a; color: #999; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; transition: all .2s; font-family: inherit; line-height: 1.5; }
+  .spatial-mode-btn:hover:not(.disabled) { border-color: #6a9eff; color: #6a9eff; }
+  .spatial-mode-btn.active { background: linear-gradient(135deg, #1a3a6c, #1e3c72); color: #6a9eff; border-color: #6a9eff; }
+  .spatial-mode-btn.disabled { opacity: .35; cursor: not-allowed; }
+  .spatial-mode-btn .em { display: block; font-size: 20px; margin-bottom: 4px; }
+  .spatial-intensity-row { background: #0f0f1a; border: 1px solid #1e1e34; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  .spatial-intensity-label { display: flex; justify-content: space-between; font-size: 12px; color: #888; margin-bottom: 10px; }
+  .spatial-intensity-label .val { color: #6a9eff; font-weight: 700; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .slider-input { width: 100%; -webkit-appearance: none; appearance: none; height: 4px; background: #222; border-radius: 2px; outline: none; }
+  .slider-input::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #6a9eff; cursor: pointer; box-shadow: 0 0 8px rgba(106,158,255,.6); }
+  .slider-input::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #6a9eff; cursor: pointer; border: none; box-shadow: 0 0 8px rgba(106,158,255,.6); }
+  .eq-section { margin-bottom: 16px; }
+  .eq-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .eq-label { font-size: 12px; color: #aaa; width: 40px; flex-shrink: 0; }
+  .eq-slider { flex: 1; }
+  .eq-value { font-size: 11px; color: #6a9eff; width: 50px; text-align: right; flex-shrink: 0; font-family: 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; }
+  .spatial-note { background: rgba(106,158,255,.08); border: 1px solid rgba(106,158,255,.25); border-radius: 10px; padding: 12px 14px; font-size: 12px; color: #8aa8dd; line-height: 1.7; margin-bottom: 14px; }
+  .spatial-note b { color: #6a9eff; }
+  .quality-presets { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .quality-presets button { padding: 10px 6px; border-radius: 10px; border: 1px solid #2a2a42; background: #0f0f1a; color: #999; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; transition: all .2s; font-family: inherit; }
+  .quality-presets button:hover { border-color: #1db954; color: #1db954; }
+  .quality-presets button.active { background: #1db954; color: #000; border-color: #1db954; }
+  .admin-banner { background: linear-gradient(90deg, #ff4d6d, #ff8c00); color: #000; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; text-align: center; margin-bottom: 14px; }
+  .admin-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #1e1e34; }
+  .admin-tabs button { flex: 1; padding: 11px; background: transparent; border: none; color: #666; cursor: pointer; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .2s; font-family: inherit; }
+  .admin-tabs button.active { color: #1db954; border-bottom-color: #1db954; }
+  .admin-panel { display: none; }
+  .admin-panel.active { display: block; }
+  .lock-screen { text-align: center; padding: 22px 0 12px; }
+  .lock-screen .lock-icon { font-size: 32px; margin-bottom: 14px; }
+  .lock-screen .lock-text { font-size: 13px; color: #888; margin-bottom: 16px; }
+  .balance-card { background: #0f0f1a; border-radius: 12px; padding: 18px; border: 1px solid #1e1e34; margin-bottom: 18px; text-align: center; }
+  .balance-card .label { font-size: 12px; color: #888; margin-bottom: 8px; }
+  .balance-card .value { font-size: 28px; font-weight: 700; color: #1db954; font-family: 'SF Mono', Menlo, Consolas, monospace; }
+  .balance-card .sub { font-size: 11px; color: #666; margin-top: 8px; }
+  .amount-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .amount-row input { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid #2a2a42; background: #0f0f1a; color: #fff; font-size: 15px; outline: none; text-align: center; font-family: 'SF Mono', Menlo, Consolas, monospace; letter-spacing: 1px; }
+  .btn-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .btn-row button { flex: 1; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; font-family: inherit; }
+  .btn-add { background: #1db954; color: #000; }
+  .btn-sub { background: #e74c3c; color: #fff; }
+  .btn-set { background: #2a5298; color: #fff; }
+  .quick-amounts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+  .quick-amounts button { padding: 7px 13px; border-radius: 16px; border: 1px solid #2a2a42; background: transparent; color: #999; cursor: pointer; font-size: 12px; transition: all .2s; font-family: inherit; }
+  .quick-amounts button:hover { border-color: #1db954; color: #1db954; }
+  .admin-info { background: #0f0f1a; border-radius: 12px; padding: 16px; border: 1px solid #1e1e34; font-size: 12px; font-family: 'SF Mono', Menlo, Consolas, monospace; color: #888; line-height: 2; }
+  .admin-info .k { color: #666; }
+  .admin-info .v { color: #e0e0e0; }
+  .admin-info .v.green { color: #1db954; }
+  .admin-info .v.red { color: #e74c3c; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .modal-actions button { flex: 1; padding: 12px; border-radius: 10px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; transition: all .2s; font-family: inherit; }
+  .btn-primary { background: #1db954; color: #000; }
+  .btn-secondary { background: #26263a; color: #ccc; }
+  .btn-danger { background: #e74c3c; color: #fff; }
+  .btn-danger:disabled { opacity: .4; cursor: not-allowed; }
+  .msg { text-align: center; font-size: 13px; margin-top: 14px; min-height: 18px; }
+  .msg.ok { color: #1db954; }
+  .msg.err { color: #e74c3c; }
+  .modal-foot { margin-top: 20px; padding-top: 16px; border-top: 1px solid #1e1e34; display: flex; justify-content: space-between; gap: 10px; font-size: 12px; flex-wrap: wrap; }
+  .modal-foot a { color: #888; cursor: pointer; text-decoration: none; border-bottom: 1px dashed #444; padding-bottom: 1px; }
+  .gen-types { display: flex; gap: 8px; margin: 18px 0; }
+  .gen-types button { flex: 1; padding: 10px; border-radius: 10px; border: 1px solid #2a2a42; background: transparent; color: #999; cursor: pointer; font-size: 13px; transition: all .2s; font-family: inherit; }
+  .gen-types button.active { background: #1db954; color: #000; border-color: #1db954; }
+  .gen-result { margin-top: 16px; max-height: 220px; overflow-y: auto; background: #0f0f1a; border-radius: 10px; padding: 14px; font-family: monospace; font-size: 13px; }
+  .gen-result:empty { display: none; }
+  .gen-code { padding: 8px 0; color: #1db954; letter-spacing: 1px; border-bottom: 1px dashed #222; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .gen-code:last-of-type { border-bottom: none; }
+  .gen-code .tip { font-size: 10px; color: #555; font-family: sans-serif; }
+  .log-list { max-height: 400px; overflow-y: auto; margin-top: 10px; }
+  .log-item { padding: 14px; border-radius: 10px; background: #0f0f1a; margin-bottom: 8px; border-left: 3px solid #1db954; }
+  .log-item.expired { border-left-color: #555; opacity: .6; }
+  .log-item.bank { border-left-color: #2a5298; }
+  .log-item.forever { border-left-color: #ffd700; }
+  .log-row1 { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .log-type { font-size: 14px; color: #1db954; font-weight: 600; }
+  .log-time { font-size: 12px; color: #777; }
+  .log-row2 { display: flex; justify-content: space-between; font-size: 12px; }
+  .log-code { color: #888; font-family: monospace; }
+  .log-exp { color: #aaa; }
+  .log-empty { text-align: center; padding: 34px; color: #555; font-size: 13px; }
+  .diag { background: #0a0a15; border: 1px solid #1e1e34; border-radius: 10px; padding: 14px; margin-top: 14px; font-family: monospace; font-size: 12px; color: #888; white-space: pre-wrap; word-break: break-all; max-height: 220px; overflow-y: auto; display: none; }
+  .diag.show { display: block; }
+  .diag .ok { color: #1db954; }
+  .diag .bad { color: #e74c3c; }
+  .help-list { font-size: 13px; line-height: 1.9; color: #bbb; }
+  .help-list li { margin-bottom: 10px; margin-left: 18px; }
+  .help-list code { background: #0f0f1a; padding: 2px 6px; border-radius: 4px; color: #1db954; font-family: monospace; font-size: 12px; }
+  .toast { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); background: #1db954; color: #000; padding: 12px 22px; border-radius: 22px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 300; max-width: 90vw; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #e74c3c; color: #fff; }
+  .toast.gold { background: linear-gradient(90deg, #ffd700, #ff8c00); color: #000; }
+  .toast.blue { background: linear-gradient(90deg, #6a9eff, #3a67b8); color: #fff; }
+  #confirmModal .modal-box { text-align: center; }
+  #confirmModal h2 { font-size: 18px; margin-bottom: 16px; }
+  #confirmModalBody { font-size: 14px; line-height: 1.9; color: #ccc; padding: 6px 0 14px; }
+  #confirmModalBody .big-price { font-size: 24px; font-weight: 700; color: #1db954; font-family: 'SF Mono', Menlo, Consolas, monospace; display: block; margin: 8px 0 12px; }
+  #confirmModalBody .row { font-size: 12px; color: #888; margin-top: 4px; }
+  @media (max-width: 480px) {
+    .container { padding: 20px 14px 150px; }
+    h1 { font-size: 17px; }
+    .back-to-top { right: 14px; bottom: 155px; width: 42px; height: 42px; }
+    .player-bar { padding: 12px 14px 14px; }
+    .player-controls { gap: 6px; }
+    .ctrl-btn { width: 34px; height: 34px; }
+    .ctrl-btn.primary { width: 40px; height: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="storage-warn" id="storageWarn" onclick="showHelp()">
+  ⚠️ <strong>浏览器禁用了本地存储</strong>，VIP 和余额在关闭页面后会丢失。点此查看解决方法
+</div>
+
+<div class="container">
+  <div class="header">
+    <h1 id="appTitle">🎵 音乐播放器</h1>
+    <div class="header-right">
+      <button class="vip-badge free" id="vipBadge">非 VIP</button>
+      <div class="menu-wrap">
+        <button class="menu-btn" id="menuBtn" title="更多">⋯</button>
+        <div class="menu-dropdown" id="menuDropdown">
+          <button data-action="profile">👤 个人中心</button>
+          <button data-action="wallet">💰 我的钱包</button>
+          <button data-action="enhance" id="enhanceMenuBtn">🎚️ 音质增强<span class="menu-tick">●</span></button>
+          <button data-action="spatial" id="spatialMenuBtn">🎧 空间音频<span class="menu-tick">●</span></button>
+          <button data-action="sleep">⏱ 定时关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="search-bar">
+    <input type="text" id="keyword" placeholder="搜索歌曲、歌手…" onkeydown="if(event.key==='Enter') searchMusic()">
+    <button id="searchBtn" onclick="searchMusic()">搜索</button>
+  </div>
+
+  <div class="source-tabs" id="sourceTabs">
+    <button data-source="netease" class="active">网易云</button>
+    <button data-source="kuwo">酷我</button>
+    <button data-source="joox">JOOX</button>
+  </div>
+
+  <div id="status" class="status">输入关键词开始搜索</div>
+  <div class="result-info" id="resultInfo"></div>
+  <ul id="songList" class="song-list"></ul>
+  <div class="load-more-wrap" id="loadMoreWrap" style="display:none">
+    <button class="load-more-btn" id="loadMoreBtn" onclick="loadMoreSearch()">加载更多</button>
+    <span class="load-more-hint" id="loadMoreHint"></span>
+  </div>
+</div>
+
+<div class="player-bar" id="playerBar">
+  <div class="player-inner">
+    <div class="player-top">
+      <div class="player-info" onclick="openLyricPanel()">
+        <div class="t" id="nowTitle">—</div>
+        <div class="a" id="nowArtist">—</div>
+      </div>
+      <span class="hifi-badge" id="hifiBadge" title="当前音质">FLAC</span>
+      <span class="spatial-badge" id="spatialBadge" title="空间音频已开启">🎧 3D</span>
+      <span class="sleep-badge" id="sleepBadge"></span>
+      <div class="player-controls">
+        <button class="ctrl-btn" id="prevBtn" onclick="playPrev()" title="上一首">⏮</button>
+        <button class="ctrl-btn primary" id="playBtn" onclick="togglePlay()" title="播放/暂停">▶</button>
+        <button class="ctrl-btn" id="nextBtn" onclick="playNext()" title="下一首">⏭</button>
+        <button class="ctrl-btn gift" id="giftBtn" title="打赏这首歌">🎁</button>
+      </div>
+    </div>
+    <div class="player-progress">
+      <span class="ptime" id="currentTime">0:00</span>
+      <div class="pbar" id="progressBar"><div class="pfill" id="progressFill"></div></div>
+      <span class="ptime" id="totalTime">0:00</span>
+    </div>
+    <div class="lyric-line" id="currentLyric" onclick="openLyricPanel()">♪ 点击播放开始听歌</div>
+    <div class="trial-tag" id="trialTag" style="display:none">试听模式 · 仅 30 秒</div>
+    <audio id="audio" preload="auto" crossorigin="anonymous"></audio>
+  </div>
+</div>
+
+<button class="back-to-top" id="backToTop" onclick="scrollToTop()" title="返回顶部">
+  <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<div class="lyric-panel" id="lyricPanel">
+  <div class="lyric-panel-inner">
+    <div class="lyric-panel-header">
+      <div class="lyric-panel-title" id="lyricPanelTitle">歌词</div>
+      <button class="lyric-close" onclick="closeLyricPanel()">✕</button>
+    </div>
+    <div class="lyric-panel-body" id="lyricBody"><div class="lyric-empty">暂无歌词</div></div>
+  </div>
+</div>
+
+<!-- 音质增强 -->
+<div class="modal" id="enhanceModal">
+  <div class="modal-box">
+    <h2>🎚️ 音质增强</h2>
+    <p class="hint">三段 EQ + 动态压缩，让声音更清晰饱满</p>
+
+    <div class="spatial-switch-row">
+      <div>
+        <div class="label">启用音质增强</div>
+        <div class="sub">开启后启用 EQ 与压缩器</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="enhanceToggle" onchange="onEnhanceToggle(this.checked)">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="quality-presets" id="enhancePresets">
+      <button data-preset="pop" onclick="applyEqPreset('pop')">流行</button>
+      <button data-preset="classical" onclick="applyEqPreset('classical')">古典</button>
+      <button data-preset="rock" onclick="applyEqPreset('rock')">摇滚</button>
+      <button data-preset="vocal" onclick="applyEqPreset('vocal')">人声</button>
+      <button data-preset="bass" onclick="applyEqPreset('bass')">低音</button>
+      <button data-preset="flat" onclick="applyEqPreset('flat')">平直</button>
+    </div>
+
+    <div class="eq-section">
+      <div class="eq-row">
+        <span class="eq-label">低音</span>
+        <input class="slider-input eq-slider" id="eqBass" type="range" min="-10" max="10" value="0" step="1" oninput="onEqChange('bass', this.value)" disabled>
+        <span class="eq-value" id="eqBassVal">0 dB</span>
+      </div>
+      <div class="eq-row">
+        <span class="eq-label">中音</span>
+        <input class="slider-input eq-slider" id="eqMid" type="range" min="-10" max="10" value="0" step="1" oninput="onEqChange('mid', this.value)" disabled>
+        <span class="eq-value" id="eqMidVal">0 dB</span>
+      </div>
+      <div class="eq-row">
+        <span class="eq-label">高音</span>
+        <input class="slider-input eq-slider" id="eqTreble" type="range" min="-10" max="10" value="0" step="1" oninput="onEqChange('treble', this.value)" disabled>
+        <span class="eq-value" id="eqTrebleVal">0 dB</span>
+      </div>
+    </div>
+
+    <div class="spatial-note">
+      💡 建议搭配无损音质使用。<b>低音</b>推荐 +3 到 +6，<b>高音</b>推荐 +2 到 +4，中音保持不动，声音会更清晰。
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('enhanceModal')">关闭</button>
+    </div>
+    <div class="msg" id="enhanceMsg"></div>
+  </div>
+</div>
+
+<!-- 空间音频 -->
+<div class="modal" id="spatialModal">
+  <div class="modal-box">
+    <h2>🎧 空间音频</h2>
+    <p class="hint">用 Web Audio 模拟 3D 环绕声场（耳机效果最佳）</p>
+
+    <div class="spatial-switch-row">
+      <div>
+        <div class="label">启用空间音频</div>
+        <div class="sub">打开后声音会在虚拟空间中定位</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="spatialToggle" onchange="onSpatialToggle(this.checked)">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="spatial-mode-grid" id="spatialModeGrid">
+      <button class="spatial-mode-btn disabled" data-mode="orbit" onclick="setSpatialMode('orbit')">
+        <span class="em">🌀</span>环绕旋转
+      </button>
+      <button class="spatial-mode-btn disabled" data-mode="hall" onclick="setSpatialMode('hall')">
+        <span class="em">🏛️</span>音乐厅
+      </button>
+      <button class="spatial-mode-btn disabled" data-mode="wide" onclick="setSpatialMode('wide')">
+        <span class="em">🎭</span>宽声场
+      </button>
+    </div>
+
+    <div class="spatial-intensity-row">
+      <div class="spatial-intensity-label">
+        <span>强度</span>
+        <span class="val" id="spatialIntensityVal">80%</span>
+      </div>
+      <input type="range" class="slider-input" id="spatialIntensity" min="0" max="100" value="80" oninput="onSpatialIntensityChange(this.value)" disabled>
+    </div>
+
+    <div class="spatial-note">
+      💡 <b>建议戴耳机</b>。空间音频依赖左右耳的时间差和频响差，音箱上效果会减弱。<br>
+      强度调到 <b>70% 以上</b>效果更明显，但太高会有一点延迟感。
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('spatialModal')">关闭</button>
+    </div>
+    <div class="msg" id="spatialMsg"></div>
+  </div>
+</div>
+
+<!-- 兑换 VIP -->
+<div class="modal" id="redeemModal">
+  <div class="modal-box">
+    <h2>VIP 兑换</h2>
+    <p class="hint">两种方式：兑换码 或 银行卡支付</p>
+    <div class="vip-info" id="redeemStatus"></div>
+    <div class="pay-tabs" id="payTabs">
+      <button data-pay="code" class="active">兑换码</button>
+      <button data-pay="bank">银行卡</button>
+    </div>
+    <div id="payCodeArea">
+      <input id="redeemInput" placeholder="D-XXXX-XXXX" maxlength="11" onkeydown="if(event.key==='Enter') doRedeem()" oninput="clearRedeemMsg()">
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeModal('redeemModal')">取消</button>
+        <button class="btn-primary" onclick="doRedeem()">兑换</button>
+      </div>
+      <div class="msg" id="redeemMsg"></div>
+    </div>
+    <div id="payBankArea" style="display:none">
+      <div id="bankVerifySection">
+        <div class="bank-verify-box">
+          <div class="field">
+            <div class="field-label">卡号</div>
+            <input id="bankCardInput" placeholder="请输入银行卡号" inputmode="numeric" autocomplete="off" oninput="formatCardInput(this)">
+          </div>
+          <div class="field">
+            <div class="field-label">密码</div>
+            <input id="bankPwdInput" type="password" placeholder="请输入银行卡密码" autocomplete="off" onkeydown="if(event.key==='Enter') verifyBank()">
+          </div>
+        </div>
+        <button class="btn-primary" style="width:100%;padding:13px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-size:14px" onclick="verifyBank()">验证并查询</button>
+        <div class="msg" id="bankMsg"></div>
+        <div class="modal-foot">
+          <a onclick="closeModal('redeemModal')">关闭</a>
+          <a onclick="runDiagnose()">🔧 诊断</a>
+        </div>
+      </div>
+      <div id="bankAuthedSection" style="display:none">
+        <div class="bank-card">
+          <div class="bank-card-label">虚拟银行卡</div>
+          <div class="bank-card-no" id="bankCardNo">—</div>
+          <div class="bank-card-balance-row">
+            <span class="bank-balance-label">可用余额</span>
+            <span class="bank-balance" id="bankBalance">—</span>
+          </div>
+        </div>
+        <div class="pay-grid" id="payGrid"></div>
+        <div class="modal-actions">
+          <button class="btn-secondary" onclick="bankLogout()">退出登录</button>
+          <button class="btn-secondary" onclick="closeModal('redeemModal')">关闭</button>
+        </div>
+        <div class="msg" id="bankAuthMsg"></div>
+        <div class="modal-foot"><a onclick="runDiagnose()">🔧 诊断</a></div>
+      </div>
+    </div>
+    <div class="diag" id="diagBox"></div>
+  </div>
+</div>
+
+<!-- 定时关闭 -->
+<div class="modal" id="sleepTimerModal">
+  <div class="modal-box">
+    <h2>⏱ 定时关闭</h2>
+    <p class="hint">到达设定时间后自动暂停播放</p>
+    <div class="sleep-options" id="sleepOptions">
+      <button data-min="15">15 分钟</button>
+      <button data-min="30">30 分钟</button>
+      <button data-min="60">60 分钟</button>
+      <button data-min="90">90 分钟</button>
+    </div>
+    <div class="sleep-custom">
+      <input id="sleepCustomInput" type="number" min="1" max="480" placeholder="自定义分钟数 (1-480)">
+      <button onclick="setSleepTimerFromCustom()">确定</button>
+    </div>
+    <div class="sleep-status" id="sleepStatus">未设置定时</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('sleepTimerModal')">关闭</button>
+      <button class="btn-danger" id="sleepCancelBtn" onclick="cancelSleepTimer()" disabled>取消定时</button>
+    </div>
+    <div class="msg" id="sleepMsg"></div>
+  </div>
+</div>
+
+<!-- 钱包 -->
+<div class="modal" id="walletModal">
+  <div class="modal-box">
+    <h2>💰 我的钱包</h2>
+    <p class="hint">签到 / 盲盒 / 成就 / 打赏榜</p>
+    <div class="wallet-balance-card">
+      <div class="label">可用余额</div>
+      <div class="amount" id="walletBalance">—</div>
+      <div class="sub" id="walletSub">—</div>
+    </div>
+    <div class="wallet-tabs" id="walletTabs">
+      <button data-tab="checkin" class="active">签到</button>
+      <button data-tab="blindbox">盲盒</button>
+      <button data-tab="achievements">成就</button>
+      <button data-tab="gifts">打赏榜</button>
+    </div>
+    <div class="wallet-panel active" id="panelCheckin">
+      <div class="checkin-grid" id="checkinGrid"></div>
+      <div class="checkin-info" id="checkinInfo"></div>
+      <button class="btn-primary" style="width:100%;padding:13px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-size:14px" id="checkinBtn" onclick="doCheckin()">今日签到 +¥0.5</button>
+      <div class="msg" id="checkinMsg"></div>
+    </div>
+    <div class="wallet-panel" id="panelBlindbox">
+      <div class="blind-box-display" id="blindBoxDisplay">🎁</div>
+      <button class="btn-primary" style="width:100%;padding:13px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-size:14px" id="blindBoxBtn" onclick="openBlindBox()">开一个盲盒 ¥9.9</button>
+      <div class="blind-box-result" id="blindBoxResult">点上方按钮，试试手气</div>
+      <div class="blind-pool" id="blindBoxPool">
+        <div class="head">📊 中奖概率</div>
+        <div>1 天 VIP · 25% &nbsp;|&nbsp; 1 周 VIP · 10%</div>
+        <div>1 个月 VIP · 4% &nbsp;|&nbsp; 半年 VIP · 0.9%</div>
+        <div>终身 VIP · 0.1% &nbsp;|&nbsp; 谢谢惠顾 · 60%</div>
+      </div>
+      <div class="msg" id="blindBoxMsg"></div>
+    </div>
+    <div class="wallet-panel" id="panelAchievements"><div class="achievements-grid" id="achievementsGrid"></div></div>
+    <div class="wallet-panel" id="panelGifts"><div class="gift-list" id="giftList"></div></div>
+    <div class="modal-actions" style="margin-top:18px"><button class="btn-secondary" onclick="closeModal('walletModal')">关闭</button></div>
+  </div>
+</div>
+
+<!-- 打赏 -->
+<div class="modal" id="giftModal">
+  <div class="modal-box">
+    <h2>🎁 打赏</h2>
+    <p class="hint" id="giftSongName">给这首歌打赏</p>
+    <div class="gift-grid" id="giftGrid"></div>
+    <div class="modal-actions"><button class="btn-secondary" onclick="closeModal('giftModal')">取消</button></div>
+    <div class="msg" id="giftMsg"></div>
+  </div>
+</div>
+
+<!-- 支付确认 -->
+<div class="modal" id="confirmModal">
+  <div class="modal-box" style="max-width:380px">
+    <h2 id="confirmTitle">确认支付</h2>
+    <div id="confirmModalBody">—</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="resolveConfirm(false)" id="confirmCancelBtn">取消</button>
+      <button class="btn-primary" id="confirmOkBtn" onclick="resolveConfirm(true)">确认支付</button>
+    </div>
+  </div>
+</div>
+
+<!-- 后台密码 -->
+<div class="modal" id="adminPwdModal">
+  <div class="modal-box">
+    <div class="lock-screen">
+      <div class="lock-icon">🔐</div>
+      <h2 style="text-align:center">管理员验证</h2>
+      <div class="lock-text">请输入管理员密码以进入后台</div>
+    </div>
+    <input id="adminPwdInput" type="password" placeholder="管理员密码" autocomplete="off" onkeydown="if(event.key==='Enter') verifyAdminPwd()">
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('adminPwdModal')">取消</button>
+      <button class="btn-primary" onclick="verifyAdminPwd()">进入后台</button>
+    </div>
+    <div class="msg" id="adminPwdMsg"></div>
+  </div>
+</div>
+
+<!-- 后台 -->
+<div class="modal" id="adminModal">
+  <div class="modal-box">
+    <div class="admin-banner">⚙️ 管理员模式</div>
+    <h2>网站后台</h2>
+    <p class="hint">余额操作需要银行卡号二次验证</p>
+    <div class="admin-tabs" id="adminTabs">
+      <button data-tab="gen" class="active">兑换码</button>
+      <button data-tab="balance">余额管理</button>
+      <button data-tab="info">系统信息</button>
+    </div>
+    <div class="admin-panel active" id="adminPanelGen">
+      <div class="gen-types" id="genTypes">
+        <button data-type="D" class="active">1 天</button>
+        <button data-type="M">1 个月</button>
+        <button data-type="P">永久</button>
+      </div>
+      <button class="btn-primary" style="width:100%;padding:12px;border-radius:10px;border:none;font-weight:600;cursor:pointer" onclick="doGenerate()">生成 5 个</button>
+      <div class="gen-result" id="genResult"></div>
+    </div>
+    <div class="admin-panel" id="adminPanelBalance">
+      <div id="adminBalanceVerify">
+        <div class="lock-screen">
+          <div class="lock-icon">💳</div>
+          <div class="lock-text">余额操作需要验证银行卡号</div>
+        </div>
+        <div class="bank-verify-box">
+          <div class="field">
+            <div class="field-label">银行卡号</div>
+            <input id="adminCardInput" placeholder="请输入银行卡号" inputmode="numeric" autocomplete="off" oninput="formatCardInput(this)" onkeydown="if(event.key==='Enter') verifyAdminCard()">
+          </div>
+        </div>
+        <button class="btn-primary" style="width:100%;padding:13px;border-radius:10px;border:none;font-weight:600;cursor:pointer;font-size:14px" onclick="verifyAdminCard()">验证卡号</button>
+        <div class="msg" id="adminCardMsg"></div>
+      </div>
+      <div id="adminBalanceOps" style="display:none">
+        <div class="balance-card">
+          <div class="label">当前余额</div>
+          <div class="value" id="adminBalance">¥0.00</div>
+          <div class="sub" id="adminBalanceSub">—</div>
+        </div>
+        <div class="amount-row"><input id="adminAmount" type="number" placeholder="输入金额" min="0" step="0.01"></div>
+        <div class="btn-row">
+          <button class="btn-add" onclick="adminAdd()">+ 加</button>
+          <button class="btn-sub" onclick="adminSub()">- 减</button>
+          <button class="btn-set" onclick="adminSet()">= 设为</button>
+        </div>
+        <div class="quick-amounts">
+          <button onclick="adminQuick(10)">+10</button>
+          <button onclick="adminQuick(100)">+100</button>
+          <button onclick="adminQuick(500)">+500</button>
+          <button onclick="adminQuick(1000)">+1000</button>
+          <button onclick="adminQuick(1399)">+1399</button>
+          <button onclick="adminQuick(-10)">-10</button>
+          <button onclick="adminReset()">重置为 100</button>
+        </div>
+        <div class="msg" id="adminMsg"></div>
+        <div style="margin-top:14px;text-align:center">
+          <a style="color:#888;font-size:12px;cursor:pointer;border-bottom:1px dashed #444" onclick="lockAdminBalance()">锁定余额操作</a>
+        </div>
+      </div>
+    </div>
+    <div class="admin-panel" id="adminPanelInfo"><div class="admin-info" id="adminInfoBox"></div></div>
+    <div class="modal-actions" style="margin-top:20px"><button class="btn-secondary" onclick="closeModal('adminModal')">关闭后台</button></div>
+  </div>
+</div>
+
+<!-- 兑换记录 -->
+<div class="modal" id="logModal">
+  <div class="modal-box">
+    <h2>兑换记录</h2>
+    <p class="hint">最近 100 条兑换记录</p>
+    <div class="log-list" id="logList"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn-secondary" onclick="clearLog()">清空记录</button>
+      <button class="btn-primary" onclick="closeModal('logModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="helpModal">
+  <div class="modal-box">
+    <h2>如何启用本地存储</h2>
+    <p class="hint">开启后 VIP 和余额才能长期保存</p>
+    <ul class="help-list">
+      <li><b>Chrome / Edge</b>：点地址栏左侧的锁🔒图标 → 网站设置 → Cookie 和网站数据 → 改成「允许」→ 刷新页面</li>
+      <li><b>或直接访问</b> <code>chrome://settings/content/cookies</code>，确认「允许网站保存和读取 Cookie 数据」已开启</li>
+      <li><b>如果是双击 HTML 打开的</b>：Chrome 对 <code>file://</code> 有限制，建议用 <code>python -m http.server 8000</code> 起个本地服务</li>
+      <li><b>Firefox</b>：检查设置里是否开了「从不记住历史记录」</li>
+      <li><b>无痕/隐私模式</b>：换普通窗口打开</li>
+    </ul>
+    <div class="modal-actions" style="margin-top:20px"><button class="btn-primary" onclick="closeModal('helpModal')">知道了</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ======================== 存储适配器 ========================
+const storage = {
+  type: 'memory', mem: {},
+  init() {
+    try { const k = '__st__'; localStorage.setItem(k, '1'); if (localStorage.getItem(k) === '1') { localStorage.removeItem(k); this.type = 'local'; return; } } catch (e) {}
+    try { const k = '__st__'; sessionStorage.setItem(k, '1'); if (sessionStorage.getItem(k) === '1') { sessionStorage.removeItem(k); this.type = 'session'; return; } } catch (e) {}
+    this.type = 'memory';
+  },
+  get(k) {
+    try { if (this.type === 'local') return localStorage.getItem(k); if (this.type === 'session') return sessionStorage.getItem(k); } catch (e) {}
+    return Object.prototype.hasOwnProperty.call(this.mem, k) ? this.mem[k] : null;
+  },
+  set(k, v) {
+    try { if (this.type === 'local') { localStorage.setItem(k, v); return true; } if (this.type === 'session') { sessionStorage.setItem(k, v); return true; } } catch (e) {}
+    this.mem[k] = v; return true;
+  },
+  remove(k) {
+    try { if (this.type === 'local') { localStorage.removeItem(k); return; } if (this.type === 'session') { sessionStorage.removeItem(k); return; } } catch (e) {}
+    delete this.mem[k];
+  }
+};
+storage.init();
+const STORAGE_DESC = { local: { name: 'localStorage', persist: '永久保存', warn: false }, session: { name: 'sessionStorage', persist: '当前标签页会话', warn: true }, memory: { name: '内存', persist: '当前页面', warn: true } };
+
+// ======================== 配置 ========================
+const API_BASE = 'https://music-api.gdstudio.xyz/api.php';
+const MIN_REQUEST_INTERVAL = 6000;
+let lastRequestTime = 0;
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 4000;
+const SEARCH_PAGE_SIZE = 50;
+const MAX_PAGES = 10;
+
+// 音质优先级列表（无损优先，失败降级）
+const AUDIO_QUALITY_CHAIN = [
+  { br: '999', tag: 'FLAC', weight: 3 },   // 无损
+  { br: '320', tag: '320K', weight: 2 },   // 极高
+  { br: '192', tag: '192K', weight: 1 },   // 高
+  { br: '128', tag: '128K', weight: 0 }    // 标准
+];
+
+const VIP_KEY = 'my_music_vip_v1';
+const VIP_LOG_KEY = 'my_music_vip_log_v1';
+const BANK_KEY = 'my_music_bank_v1';
+const CHECKIN_KEY = 'my_music_checkin_v1';
+const ACH_KEY = 'my_music_achievements_v1';
+const GIFT_KEY = 'my_music_gifts_v1';
+const UNLOCKED_KEY = 'my_music_unlocked_v1';
+const PROFILE_KEY = 'my_music_profile_v1';
+const HISTORY_KEY = 'my_music_history_v1';
+const UNLOCKED_DETAIL_KEY = 'my_music_unlocked_detail_v1';
+const SPATIAL_KEY = 'my_music_spatial_v1';
+const ENHANCE_KEY = 'my_music_enhance_v1';
+
+const TRIAL_SECONDS = 30;
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CODE_REGEX = /^[DMP][ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/;
+const TYPE_MAP = { D: 'day', M: 'month', P: 'forever' };
+
+const DAY_MS = 86400000;
+const VIP_DURATIONS = { day: 1 * DAY_MS, week: 7 * DAY_MS, month: 30 * DAY_MS, quarter: 90 * DAY_MS, half: 180 * DAY_MS, forever: null };
+const TYPE_NAMES = { day: '1 天', week: '1 周', month: '1 个月', quarter: '1 季度', half: '半年', forever: '终身' };
+
+const BANK_CARD_NO = '6222888800001008';
+const BANK_PASSWORD = '123456wen';
+const BANK_INIT_BAL = 100;
+
+const PAY_OPTIONS = [
+  { type: 'day', name: '1 天', price: 9.9, origPrice: null, desc: '24 小时权限' },
+  { type: 'week', name: '1 周', price: 19.9, origPrice: 69.3, desc: '7 天完整权限' },
+  { type: 'month', name: '1 个月', price: 39.9, origPrice: 297, desc: '30 天' },
+  { type: 'quarter', name: '1 季度', price: 99, origPrice: 891, desc: '90 天' },
+  { type: 'half', name: '半年', price: 168, origPrice: 1782, desc: '180 天' },
+  { type: 'forever', name: '终身', price: 1399, origPrice: null, desc: '一次买断 · 永久有效', premium: true, tag: '推荐' }
+];
+const PRICE_MAP = {};
+PAY_OPTIONS.forEach(o => { PRICE_MAP[o.type] = o.price; });
+const CONFIRM_THRESHOLD = 50;
+const ADMIN_PASSWORD = 'admin888';
+const CHECKIN_BASE = 0.5;
+const CHECKIN_BONUS7 = 5;
+const BLIND_BOX_PRICE = 9.9;
+const BLIND_BOX_POOL = [
+  { type: 'none', weight: 60, label: '谢谢惠顾', emoji: '😢' },
+  { type: 'day', weight: 25, label: '1 天 VIP', emoji: '🎉' },
+  { type: 'week', weight: 10, label: '1 周 VIP', emoji: '🎊' },
+  { type: 'month', weight: 4, label: '1 个月 VIP', emoji: '🏆' },
+  { type: 'half', weight: 0.9, label: '半年 VIP', emoji: '💎' },
+  { type: 'forever', weight: 0.1, label: '终身 VIP', emoji: '👑' }
+];
+
+const BLESSINGS = [
+  '愿你今后的每一天，都像今天这样闪闪发光 ✨',
+  '愿所有美好，都能不期而遇 🎈',
+  '愿你所行皆坦途，所遇皆温暖 🌸',
+  '愿岁月温柔以待，愿你一生被爱 💝',
+  '愿你的歌单，永远有下不完的好歌 🎵',
+  '愿你从此再无会员限制，自由听歌 🎧',
+  '愿你像风一样自由，像云一样洒脱 ☁️',
+  '愿每一个深夜，都有好音乐陪伴你 🌙',
+  '愿你的生活，像这首歌一样动听 💐',
+  '愿你被这个世界温柔相待 🌈',
+  '祝你有酒有歌有故事，有诗有梦有远方 🍻',
+  '愿你事事顺遂，日日欢喜，年年有余 🌟',
+  '愿你想听的歌，永远都在 💿',
+  '愿你的世界，永远阳光明媚 ☀️',
+  '愿你走过千山万水，归来仍是少年 🍃',
+  '愿你心中所想，皆如所愿 🌠',
+  '愿你一直有好歌陪伴，有爱人同行 💞',
+  '愿你眼里有光，心中有海 🌊',
+  '愿此生尽兴，赤诚善良 🌻',
+  '愿你四季安康，年年欢喜 🎊',
+  '愿你所到之处，皆是繁花盛开 🌺',
+  '愿你今后的人生，都能随心所欲 🕊️',
+  '愿你既有前程可奔赴，也有岁月可回头 🛤️',
+  '愿你和喜欢的人，一起听喜欢的歌 🎶',
+  '愿你被偏爱，被珍惜，被温柔以待 💖'
+];
+
+const UNLOCK_PRICE = 1.9;
+const GIFT_OPTIONS = [
+  { amount: 1, emoji: '🌹' }, { amount: 5, emoji: '🍰' }, { amount: 10, emoji: '🎂' },
+  { amount: 50, emoji: '🚀' }, { amount: 100, emoji: '👑' }, { amount: 200, emoji: '💎' }
+];
+
+const ACHIEVEMENTS = [
+  { id: 'first_checkin', name: '初次签到', desc: '完成第一次签到', icon: '📅' },
+  { id: 'streak_7', name: '七日坚持', desc: '连续签到 7 天', icon: '🔥' },
+  { id: 'total_30', name: '月度活跃', desc: '累计签到 30 天', icon: '⭐' },
+  { id: 'first_box', name: '初次盲盒', desc: '打开第一个盲盒', icon: '🎁' },
+  { id: 'box_10', name: '盲盒爱好者', desc: '打开 10 个盲盒', icon: '🎰' },
+  { id: 'first_gift', name: '慷慨打赏', desc: '首次给歌曲打赏', icon: '💝' },
+  { id: 'gift_100', name: '土豪榜主', desc: '累计打赏 100 元', icon: '💰' },
+  { id: 'first_unlock', name: '单曲收藏家', desc: '解锁第一首单曲', icon: '🎵' },
+  { id: 'spend_500', name: '白银会员', desc: '累计消费 500 元', icon: '🥈' },
+  { id: 'spend_1399', name: '黄金会员', desc: '累计消费 1399 元', icon: '🥇' },
+  { id: 'vip_forever', name: '终身贵族', desc: '成为终身 VIP', icon: '💎' }
+];
+
+// ======================== 全局状态 ========================
+let currentSource = 'netease';
+let currentSong = null;
+let currentPlayingKey = null;
+let isRequesting = false;
+let bankVerified = false;
+let adminCardVerified = false;
+let _confirmResolve = null;
+let searchKeyword = '';
+let searchPage = 0;
+let searchTotal = 0;
+let currentListSongs = [];
+let currentQueueIndex = -1;
+let currentLyrics = [];
+let currentLyricIndex = -1;
+let lyricLoadingFor = '';
+let sleepTimer = { endAt: null, intervalId: null };
+let blessingBusy = false;
+
+// ======================== 音频引擎（音质增强 + 空间音频共用） ========================
+const audioEngine = {
+  ctx: null,
+  sourceNode: null,
+  // 音质增强节点
+  eqBass: null, eqMid: null, eqTreble: null,
+  compressor: null,
+  enhancerOutput: null,
+  // 空间音频节点
+  dryGain: null, wetGain: null,
+  panner: null, convolver: null, convolver2: null,
+  spatialOutput: null,
+  // 环绕动画
+  orbitRunning: false, orbitRaf: null, orbitStartTime: 0,
+  // 状态
+  enhanceEnabled: false,
+  enhanceBass: 0, enhanceMid: 0, enhanceTreble: 0,
+  spatialEnabled: false,
+  spatialMode: 'orbit',
+  spatialIntensity: 80,
+  lastQuality: { br: '999', tag: 'FLAC' }
+};
+
+const songCache = {};
+const audio = document.getElementById('audio');
+const statusEl = document.getElementById('status');
+const resultInfoEl = document.getElementById('resultInfo');
+const listEl = document.getElementById('songList');
+const loadMoreWrap = document.getElementById('loadMoreWrap');
+const loadMoreBtn = document.getElementById('loadMoreBtn');
+const loadMoreHint = document.getElementById('loadMoreHint');
+const searchBtn = document.getElementById('searchBtn');
+const vipBadge = document.getElementById('vipBadge');
+const trialTag = document.getElementById('trialTag');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const playBtn = document.getElementById('playBtn');
+const progressBar = document.getElementById('progressBar');
+const progressFill = document.getElementById('progressFill');
+const currentTimeEl = document.getElementById('currentTime');
+const totalTimeEl = document.getElementById('totalTime');
+const backToTopBtn = document.getElementById('backToTop');
+const spatialBadge = document.getElementById('spatialBadge');
+const hifiBadge = document.getElementById('hifiBadge');
+
+// ======================== 通用工具 ========================
+function setStatus(el, text, isError) { if (!el) return; el.textContent = text; el.style.display = text ? 'block' : 'none'; el.classList.toggle('error', !!isError); }
+function escapeHtml(str) { const d = document.createElement('div'); d.textContent = String(str == null ? '' : str); return d.innerHTML; }
+function normalizeSong(song) {
+  if (!song) return null;
+  return { id: String(song.id == null ? '' : song.id), name: String(song.name || '未知歌曲'), artist: Array.isArray(song.artist) ? song.artist.map(String) : (song.artist ? [String(song.artist)] : []), source: String(song.source || 'netease') };
+}
+function songKey(song) { const s = normalizeSong(song); return s ? (s.id + '_' + s.source) : ''; }
+function showToast(msg, isError, isGold, isBlue) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : (isGold ? ' gold' : (isBlue ? ' blue' : '')));
+  clearTimeout(t._timer); t._timer = setTimeout(() => { t.className = 'toast'; }, 2800);
+}
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal').forEach(m => { m.addEventListener('click', e => { if (e.target === m) m.classList.remove('show'); }); });
+function showHelp() { openModal('helpModal'); }
+function shakeEl(el) { if (!el) return; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+async function waitForThrottle() { const e = Date.now() - lastRequestTime; if (e < MIN_REQUEST_INTERVAL) await new Promise(r => setTimeout(r, MIN_REQUEST_INTERVAL - e)); lastRequestTime = Date.now(); }
+async function fetchWithRetry(url, retries) {
+  retries = retries == null ? MAX_RETRIES : retries;
+  let lastErr = null;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      await waitForThrottle();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data && data.code && data.code !== 0 && data.code !== 200) throw new Error('API 返回异常: code=' + data.code);
+      return data;
+    } catch (err) { lastErr = err; if (i < retries) await new Promise(r => setTimeout(r, RETRY_DELAY)); }
+  }
+  throw lastErr || new Error('请求失败');
+}
+function formatTime(ts) { const d = new Date(ts); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+function formatDuration(sec) { if (!isFinite(sec) || sec < 0) return '0:00'; const m = Math.floor(sec / 60); const s = Math.floor(sec % 60); return m + ':' + String(s).padStart(2, '0'); }
+function todayStr() { const d = new Date(); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+function yesterdayStr() { const d = new Date(Date.now() - DAY_MS); const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+function formatPrice(n) { return '¥' + Number(n).toFixed(2); }
+function formatPriceShort(n) { const num = Number(n); return Number.isInteger(num) ? ('¥' + num) : ('¥' + num.toFixed(2)); }
+function isForeverVip() { const v = getVip(); return !!(v && v.expireAt === null); }
+
+// ======================== 返回顶部 ========================
+function scrollToTop() { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); } }
+function updateBackToTopVisibility() { const y = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0; backToTopBtn.classList.toggle('show', y > 300); }
+let backToTopTicking = false;
+window.addEventListener('scroll', () => { if (!backToTopTicking) { window.requestAnimationFrame(() => { updateBackToTopVisibility(); backToTopTicking = false; }); backToTopTicking = true; } }, { passive: true });
+
+// ======================== 音频引擎初始化 ========================
+function initAudioEngine() {
+  if (audioEngine.ctx) return true;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) { showToast('当前浏览器不支持 Web Audio API', true); return false; }
+  try {
+    const ctx = new AC();
+    audioEngine.ctx = ctx;
+    audioEngine.sourceNode = ctx.createMediaElementSource(audio);
+
+    // ---- 音质增强链：EQ (低/中/高) → 压缩器 ----
+    const eqBass = ctx.createBiquadFilter();
+    eqBass.type = 'lowshelf';
+    eqBass.frequency.value = 200;
+
+    const eqMid = ctx.createBiquadFilter();
+    eqMid.type = 'peaking';
+    eqMid.frequency.value = 1500;
+    eqMid.Q.value = 0.7;
+
+    const eqTreble = ctx.createBiquadFilter();
+    eqTreble.type = 'highshelf';
+    eqTreble.frequency.value = 3500;
+
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -20;
+    compressor.knee.value = 20;
+    compressor.ratio.value = 3;
+    compressor.attack.value = 0.005;
+    compressor.release.value = 0.2;
+
+    audioEngine.eqBass = eqBass;
+    audioEngine.eqMid = eqMid;
+    audioEngine.eqTreble = eqTreble;
+    audioEngine.compressor = compressor;
+
+    // 音质增强输出节点
+    const enhancerOutput = ctx.createGain();
+    enhancerOutput.gain.value = 1;
+    audioEngine.enhancerOutput = enhancerOutput;
+
+    // ---- 空间音频链 ----
+    const dryGain = ctx.createGain(); dryGain.gain.value = 1;
+    const wetGain = ctx.createGain(); wetGain.gain.value = 0;
+    audioEngine.dryGain = dryGain;
+    audioEngine.wetGain = wetGain;
+
+    const panner = ctx.createPanner();
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 1;
+    panner.maxDistance = 10000;
+    panner.rolloffFactor = 0.3;
+    panner.coneInnerAngle = 360;
+    panner.coneOuterAngle = 360;
+    audioEngine.panner = panner;
+
+    // 生成 IR
+    const conv = ctx.createConvolver();
+    conv.buffer = genIR(ctx, 2.2, 2.2, false);
+    audioEngine.convolver = conv;
+    const conv2 = ctx.createConvolver();
+    conv2.buffer = genIR(ctx, 3.8, 1.8, true);
+    audioEngine.convolver2 = conv2;
+    const conv1Gain = ctx.createGain(); conv1Gain.gain.value = 0.65;
+    const conv2Gain = ctx.createGain(); conv2Gain.gain.value = 0.35;
+
+    // ---- 空间音频输出 ----
+    const spatialOutput = ctx.createGain();
+    spatialOutput.gain.value = 1;
+    audioEngine.spatialOutput = spatialOutput;
+
+    // ---- 连线 ----
+    // source → EQ链 → 压缩 → enhancerOutput
+    audioEngine.sourceNode.connect(eqBass);
+    eqBass.connect(eqMid);
+    eqMid.connect(eqTreble);
+    eqTreble.connect(compressor);
+    compressor.connect(enhancerOutput);
+
+    // enhancerOutput → dry (干路)
+    enhancerOutput.connect(dryGain);
+    dryGain.connect(spatialOutput);
+
+    // enhancerOutput → wet (湿路)
+    enhancerOutput.connect(wetGain);
+    wetGain.connect(panner);
+    panner.connect(conv);
+    panner.connect(conv2);
+    conv.connect(conv1Gain);
+    conv2.connect(conv2Gain);
+    conv1Gain.connect(spatialOutput);
+    conv2Gain.connect(spatialOutput);
+
+    spatialOutput.connect(ctx.destination);
+
+    setPannerPosition(0, 0, -1);
+    return true;
+  } catch (e) {
+    console.error('音频引擎初始化失败:', e);
+    showToast('音频引擎初始化失败: ' + e.message, true);
+    audioEngine.ctx = null;
+    return false;
+  }
+}
+
+function genIR(ctx, duration, decay, biasTail) {
+  const rate = ctx.sampleRate;
+  const len = Math.max(1, Math.floor(rate * duration));
+  const impulse = ctx.createBuffer(2, len, rate);
+  const L = impulse.getChannelData(0), R = impulse.getChannelData(1);
+  for (let i = 0; i < len; i++) {
+    const n = len - i;
+    const dr = Math.pow(n / len, decay);
+    L[i] = (Math.random() * 2 - 1) * dr;
+    const b = biasTail ? 1 + (Math.random() - 0.5) * 0.12 : 1;
+    R[i] = (Math.random() * 2 - 1) * dr * b;
+  }
+  return impulse;
+}
+
+function setPannerPosition(x, y, z) {
+  const p = audioEngine.panner;
+  if (!p) return;
+  if (p.positionX) {
+    try { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; }
+    catch (e) { p.setPosition(x, y, z); }
+  } else { p.setPosition(x, y, z); }
+}
+
+// ======================== 环绕动画 ========================
+function startOrbit() {
+  if (!audioEngine.ctx || audioEngine.orbitRunning) return;
+  audioEngine.orbitRunning = true;
+  audioEngine.orbitStartTime = audioEngine.ctx.currentTime;
+  const animate = () => {
+    if (!audioEngine.orbitRunning || !audioEngine.panner) return;
+    const t = (audioEngine.ctx.currentTime - audioEngine.orbitStartTime) * 0.55;
+    const radius = 1.8 + (audioEngine.spatialIntensity / 100) * 3.2;
+    const x = Math.sin(t) * radius;
+    const z = -Math.cos(t) * radius;
+    if (audioEngine.panner.positionX) {
+      const now = audioEngine.ctx.currentTime;
+      audioEngine.panner.positionX.setTargetAtTime(x, now, 0.05);
+      audioEngine.panner.positionY.setTargetAtTime(0, now, 0.05);
+      audioEngine.panner.positionZ.setTargetAtTime(z, now, 0.05);
+    } else {
+      setPannerPosition(x, 0, z);
+    }
+    audioEngine.orbitRaf = requestAnimationFrame(animate);
+  };
+  audioEngine.orbitRaf = requestAnimationFrame(animate);
+}
+function stopOrbit() {
+  audioEngine.orbitRunning = false;
+  if (audioEngine.orbitRaf) { cancelAnimationFrame(audioEngine.orbitRaf); audioEngine.orbitRaf = null; }
+}
+
+// ======================== 应用音频设置 ========================
+function applyAudioSettings() {
+  if (!audioEngine.ctx) return;
+  const now = audioEngine.ctx.currentTime;
+  const e = audioEngine;
+
+  // ---- 音质增强 ----
+  if (e.enhanceEnabled) {
+    e.eqBass.gain.setTargetAtTime(e.enhanceBass, now, 0.08);
+    e.eqMid.gain.setTargetAtTime(e.enhanceMid, now, 0.08);
+    e.eqTreble.gain.setTargetAtTime(e.enhanceTreble, now, 0.08);
+    e.compressor.threshold.setTargetAtTime(-22, now, 0.1);
+    e.compressor.knee.setTargetAtTime(22, now, 0.1);
+    e.compressor.ratio.setTargetAtTime(3, now, 0.1);
+    e.compressor.attack.setTargetAtTime(0.005, now, 0.1);
+    e.compressor.release.setTargetAtTime(0.2, now, 0.1);
+  } else {
+    e.eqBass.gain.setTargetAtTime(0, now, 0.08);
+    e.eqMid.gain.setTargetAtTime(0, now, 0.08);
+    e.eqTreble.gain.setTargetAtTime(0, now, 0.08);
+    e.compressor.threshold.setTargetAtTime(0, now, 0.1);
+    e.compressor.ratio.setTargetAtTime(1, now, 0.1);
+  }
+
+  // ---- 空间音频 ----
+  const intensity = e.spatialIntensity / 100;
+
+  if (!e.spatialEnabled) {
+    e.dryGain.gain.setTargetAtTime(1, now, 0.05);
+    e.wetGain.gain.setTargetAtTime(0, now, 0.05);
+    e.spatialOutput.gain.setTargetAtTime(1, now, 0.05);
+    stopOrbit();
+    updateSpatialBadge();
+    updateMenuTick('spatialMenuBtn', false);
+    return;
+  }
+
+  let dryLevel = 1, wetLevel = 0.5, outLevel = 1.2;
+
+  if (e.spatialMode === 'orbit') {
+    // 环绕：大幅湿声，环绕转动
+    dryLevel = 0.7;
+    wetLevel = 1.2 + intensity * 0.6;   // 上限 1.8
+    outLevel = 1.05 + intensity * 0.15;
+    startOrbit();
+  } else if (e.spatialMode === 'hall') {
+    // 音乐厅：干声降，湿声大，混响丰满
+    dryLevel = 0.5;
+    wetLevel = 1.4 + intensity * 0.5;   // 上限 1.9
+    outLevel = 1.05 + intensity * 0.1;
+    stopOrbit();
+    setPannerPosition(0, 0, -1);
+  } else if (e.spatialMode === 'wide') {
+    // 宽声场：干声强，湿声适中
+    dryLevel = 1.0;
+    wetLevel = 0.8 + intensity * 0.4;
+    outLevel = 1.1 + intensity * 0.08;
+    stopOrbit();
+    setPannerPosition(0, 0, -0.6);
+  }
+
+  // 按强度微调
+  dryLevel = dryLevel * (1 - intensity * 0.15) + (1 - intensity * 0.15) * 0.3;
+  outLevel = outLevel;
+
+  e.dryGain.gain.setTargetAtTime(dryLevel, now, 0.08);
+  e.wetGain.gain.setTargetAtTime(wetLevel, now, 0.08);
+  e.spatialOutput.gain.setTargetAtTime(outLevel, now, 0.08);
+
+  updateSpatialBadge();
+  updateMenuTick('spatialMenuBtn', true);
+}
+
+function updateSpatialBadge() {
+  if (audioEngine.spatialEnabled) {
+    spatialBadge.classList.add('on');
+    const m = { orbit: '环绕', hall: '厅堂', wide: '宽场' };
+    spatialBadge.textContent = '🎧 ' + (m[audioEngine.spatialMode] || '3D');
+  } else {
+    spatialBadge.classList.remove('on');
+  }
+}
+function updateMenuTick(id, on) { const btn = document.getElementById(id); if (btn) btn.classList.toggle('on', !!on); }
+
+// ======================== 音质增强交互 ========================
+async function onEnhanceToggle(checked) {
+  const msgEl = document.getElementById('enhanceMsg');
+  msgEl.textContent = ''; msgEl.className = 'msg';
+
+  if (checked) {
+    if (!audioEngine.ctx && !initAudioEngine()) { document.getElementById('enhanceToggle').checked = false; return; }
+    if (audioEngine.ctx.state === 'suspended') { try { await audioEngine.ctx.resume(); } catch (e) {} }
+    audioEngine.enhanceEnabled = true;
+    applyAudioSettings();
+    enableEqControls(true);
+    msgEl.textContent = '音质增强已开启，建议调高「低音」+3 到 +6';
+    msgEl.className = 'msg ok';
+    showToast('🎚️ 音质增强已开启', false, false, true);
+  } else {
+    audioEngine.enhanceEnabled = false;
+    applyAudioSettings();
+    enableEqControls(false);
+    msgEl.textContent = '音质增强已关闭';
+    msgEl.className = 'msg';
+    showToast('音质增强已关闭');
+  }
+  saveEnhanceSettings();
+  updateMenuTick('enhanceMenuBtn', audioEngine.enhanceEnabled);
+}
+
+function enableEqControls(enabled) {
+  ['eqBass', 'eqMid', 'eqTreble'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !enabled; });
+}
+
+function onEqChange(freq, value) {
+  const v = parseInt(value, 10);
+  audioEngine['enhance' + freq.charAt(0).toUpperCase() + freq.slice(1)] = v;
+  const idMap = { bass: 'eqBassVal', mid: 'eqMidVal', treble: 'eqTrebleVal' };
+  const valEl = document.getElementById(idMap[freq]);
+  if (valEl) valEl.textContent = (v > 0 ? '+' : '') + v + ' dB';
+  if (audioEngine.enhanceEnabled) applyAudioSettings();
+  saveEnhanceSettings();
+}
+
+function applyEqPreset(preset) {
+  const presets = {
+    pop: { bass: 3, mid: 0, treble: 3 },
+    classical: { bass: -1, mid: 0, treble: 4 },
+    rock: { bass: 5, mid: -1, treble: 4 },
+    vocal: { bass: 0, mid: 4, treble: 2 },
+    bass: { bass: 8, mid: 0, treble: -2 },
+    flat: { bass: 0, mid: 0, treble: 0 }
+  };
+  const p = presets[preset] || presets.flat;
+  audioEngine.enhanceBass = p.bass;
+  audioEngine.enhanceMid = p.mid;
+  audioEngine.enhanceTreble = p.treble;
+  document.getElementById('eqBass').value = p.bass;
+  document.getElementById('eqMid').value = p.mid;
+  document.getElementById('eqTreble').value = p.treble;
+  document.getElementById('eqBassVal').textContent = (p.bass > 0 ? '+' : '') + p.bass + ' dB';
+  document.getElementById('eqMidVal').textContent = (p.mid > 0 ? '+' : '') + p.mid + ' dB';
+  document.getElementById('eqTrebleVal').textContent = (p.treble > 0 ? '+' : '') + p.treble + ' dB';
+  document.querySelectorAll('#enhancePresets button').forEach(b => b.classList.toggle('active', b.dataset.preset === preset));
+  if (audioEngine.enhanceEnabled) applyAudioSettings();
+  saveEnhanceSettings();
+  if (!audioEngine.enhanceEnabled) {
+    showToast('已选择预设「' + preset + '」，请先打开上方开关', true);
+  } else {
+    showToast('🎚️ 已应用预设', false, false, true);
+  }
+}
+
+function saveEnhanceSettings() {
+  try { storage.set(ENHANCE_KEY, JSON.stringify({ enabled: audioEngine.enhanceEnabled, bass: audioEngine.enhanceBass, mid: audioEngine.enhanceMid, treble: audioEngine.enhanceTreble })); } catch (e) {}
+}
+function loadEnhanceSettings() {
+  try {
+    const s = JSON.parse(storage.get(ENHANCE_KEY) || 'null');
+    if (s) {
+      audioEngine.enhanceBass = s.bass || 0;
+      audioEngine.enhanceMid = s.mid || 0;
+      audioEngine.enhanceTreble = s.treble || 0;
+      // enabled 不自动恢复
+    }
+  } catch (e) {}
+}
+function openEnhanceModal() {
+  loadEnhanceSettings();
+  document.getElementById('enhanceToggle').checked = audioEngine.enhanceEnabled;
+  document.getElementById('eqBass').value = audioEngine.enhanceBass;
+  document.getElementById('eqMid').value = audioEngine.enhanceMid;
+  document.getElementById('eqTreble').value = audioEngine.enhanceTreble;
+  document.getElementById('eqBassVal').textContent = (audioEngine.enhanceBass > 0 ? '+' : '') + audioEngine.enhanceBass + ' dB';
+  document.getElementById('eqMidVal').textContent = (audioEngine.enhanceMid > 0 ? '+' : '') + audioEngine.enhanceMid + ' dB';
+  document.getElementById('eqTrebleVal').textContent = (audioEngine.enhanceTreble > 0 ? '+' : '') + audioEngine.enhanceTreble + ' dB';
+  enableEqControls(audioEngine.enhanceEnabled);
+  document.getElementById('enhanceMsg').textContent = '';
+  openModal('enhanceModal');
+}
+
+// ======================== 空间音频交互 ========================
+async function onSpatialToggle(checked) {
+  const msgEl = document.getElementById('spatialMsg');
+  msgEl.textContent = ''; msgEl.className = 'msg';
+
+  if (checked) {
+    if (!audioEngine.ctx && !initAudioEngine()) { document.getElementById('spatialToggle').checked = false; return; }
+    if (audioEngine.ctx.state === 'suspended') { try { await audioEngine.ctx.resume(); } catch (e) {} }
+    audioEngine.spatialEnabled = true;
+    applyAudioSettings();
+    enableSpatialControls(true);
+    msgEl.textContent = '空间音频已开启，建议戴耳机体验 🎧';
+    msgEl.className = 'msg ok';
+    showToast('🎧 空间音频已开启', false, false, true);
+  } else {
+    audioEngine.spatialEnabled = false;
+    applyAudioSettings();
+    enableSpatialControls(false);
+    msgEl.textContent = '空间音频已关闭';
+    msgEl.className = 'msg';
+    showToast('空间音频已关闭');
+  }
+  saveSpatialSettings();
+}
+
+function enableSpatialControls(enabled) {
+  document.querySelectorAll('.spatial-mode-btn').forEach(b => b.classList.toggle('disabled', !enabled));
+  const s = document.getElementById('spatialIntensity');
+  if (s) s.disabled = !enabled;
+}
+
+function setSpatialMode(mode) {
+  if (!audioEngine.spatialEnabled) { showToast('请先开启空间音频', true); return; }
+  audioEngine.spatialMode = mode;
+  saveSpatialSettings();
+  document.querySelectorAll('.spatial-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  applyAudioSettings();
+  const names = { orbit: '环绕旋转', hall: '音乐厅', wide: '宽声场' };
+  showToast('🎧 已切换到「' + names[mode] + '」', false, false, true);
+}
+
+function onSpatialIntensityChange(value) {
+  audioEngine.spatialIntensity = parseInt(value, 10);
+  document.getElementById('spatialIntensityVal').textContent = value + '%';
+  if (audioEngine.spatialEnabled) applyAudioSettings();
+  saveSpatialSettings();
+}
+
+function saveSpatialSettings() {
+  try { storage.set(SPATIAL_KEY, JSON.stringify({ enabled: audioEngine.spatialEnabled, mode: audioEngine.spatialMode, intensity: audioEngine.spatialIntensity })); } catch (e) {}
+}
+function loadSpatialSettings() {
+  try {
+    const s = JSON.parse(storage.get(SPATIAL_KEY) || 'null');
+    if (s) {
+      audioEngine.spatialMode = s.mode || 'orbit';
+      audioEngine.spatialIntensity = typeof s.intensity === 'number' ? s.intensity : 80;
+    }
+  } catch (e) {}
+}
+function openSpatialModal() {
+  loadSpatialSettings();
+  document.getElementById('spatialToggle').checked = audioEngine.spatialEnabled;
+  document.getElementById('spatialIntensity').value = audioEngine.spatialIntensity;
+  document.getElementById('spatialIntensityVal').textContent = audioEngine.spatialIntensity + '%';
+  document.querySelectorAll('.spatial-mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === audioEngine.spatialMode);
+    b.classList.toggle('disabled', !audioEngine.spatialEnabled);
+  });
+  document.getElementById('spatialIntensity').disabled = !audioEngine.spatialEnabled;
+  document.getElementById('spatialMsg').textContent = '';
+  openModal('spatialModal');
+}
+
+// ======================== 确认弹窗 ========================
+function showConfirm(title, bodyHtml, okText, cancelText) {
+  return new Promise(resolve => {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmModalBody').innerHTML = bodyHtml;
+    document.getElementById('confirmOkBtn').textContent = okText || '确认支付';
+    document.getElementById('confirmCancelBtn').textContent = cancelText || '取消';
+    _confirmResolve = resolve;
+    openModal('confirmModal');
+  });
+}
+function resolveConfirm(result) { closeModal('confirmModal'); const r = _confirmResolve; _confirmResolve = null; if (r) r(result); }
+
+// ======================== 菜单 ========================
+document.getElementById('menuBtn').addEventListener('click', e => { e.stopPropagation(); document.getElementById('menuDropdown').classList.toggle('show'); });
+document.addEventListener('click', () => { document.getElementById('menuDropdown').classList.remove('show'); });
+document.getElementById('menuDropdown').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  document.getElementById('menuDropdown').classList.remove('show');
+  if (action === 'profile') { renderProfile(); document.getElementById('profileSettings').classList.remove('show'); openModal('profileModal'); }
+  else if (action === 'wallet') openWalletModal();
+  else if (action === 'enhance') openEnhanceModal();
+  else if (action === 'spatial') openSpatialModal();
+  else if (action === 'sleep') openSleepTimerModal();
+});
+
+function openWalletModal() {
+  renderWalletBalance(); renderCheckinPanel(); renderAchievements(); renderGiftList(); updateBlindBoxPanel();
+  document.querySelectorAll('#walletTabs button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#walletTabs button[data-tab="checkin"]').classList.add('active');
+  document.querySelectorAll('.wallet-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panelCheckin').classList.add('active');
+  openModal('walletModal');
+}
+function openWalletFromProfile() { closeModal('profileModal'); openWalletModal(); }
+
+// ======================== 睡眠定时 ========================
+function openSleepTimerModal() {
+  updateSleepTimerUI();
+  document.getElementById('sleepCustomInput').value = '';
+  document.getElementById('sleepMsg').textContent = '';
+  openModal('sleepTimerModal');
+}
+function setSleepTimer(minutes) {
+  sleepTimer.endAt = Date.now() + minutes * 60 * 1000;
+  startSleepTick();
+  updateSleepTimerUI();
+  updateSleepBadge();
+  const msgEl = document.getElementById('sleepMsg');
+  msgEl.textContent = '已设置：' + minutes + ' 分钟后自动暂停';
+  msgEl.className = 'msg ok';
+  showToast('⏱ 已设置 ' + minutes + ' 分钟定时');
+  document.querySelectorAll('#sleepOptions button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.min, 10) === minutes));
+}
+function setSleepTimerFromCustom() {
+  const input = document.getElementById('sleepCustomInput');
+  const v = parseInt(input.value, 10);
+  if (!isFinite(v) || v < 1 || v > 480) { showToast('请输入 1 - 480 之间的分钟数', true); shakeEl(input); return; }
+  setSleepTimer(v); input.value = '';
+}
+function cancelSleepTimer() { if (!sleepTimer.endAt) { showToast('没有正在运行的定时'); return; } stopSleepTimer(); document.getElementById('sleepMsg').textContent = '已取消'; showToast('已取消定时关闭'); }
+function stopSleepTimer() {
+  if (sleepTimer.intervalId) { clearInterval(sleepTimer.intervalId); sleepTimer.intervalId = null; }
+  sleepTimer.endAt = null;
+  document.querySelectorAll('#sleepOptions button').forEach(b => b.classList.remove('active'));
+  updateSleepTimerUI(); updateSleepBadge();
+}
+function startSleepTick() {
+  if (sleepTimer.intervalId) clearInterval(sleepTimer.intervalId);
+  sleepTimer.intervalId = setInterval(() => {
+    if (!sleepTimer.endAt) return;
+    const left = sleepTimer.endAt - Date.now();
+    if (left <= 0) { stopSleepTimer(); try { audio.pause(); } catch (e) {} showToast('⏱ 定时已到，音乐已暂停'); return; }
+    updateSleepTimerUI(); updateSleepBadge();
+  }, 1000);
+}
+function updateSleepTimerUI() {
+  const s = document.getElementById('sleepStatus'), c = document.getElementById('sleepCancelBtn');
+  if (!s) return;
+  if (!sleepTimer.endAt) { s.textContent = '未设置定时'; s.className = 'sleep-status'; if (c) c.disabled = true; return; }
+  const left = sleepTimer.endAt - Date.now();
+  if (left <= 0) { stopSleepTimer(); return; }
+  s.textContent = '剩余 ' + formatSleepRemain(left);
+  s.className = 'sleep-status active';
+  if (c) c.disabled = false;
+}
+function formatSleepRemain(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  if (h > 0) return h + ' 小时 ' + String(m).padStart(2, '0') + ' 分 ' + String(s).padStart(2, '0') + ' 秒';
+  return m + ' 分 ' + String(s).padStart(2, '0') + ' 秒';
+}
+function updateSleepBadge() {
+  const b = document.getElementById('sleepBadge');
+  if (!b) return;
+  if (!sleepTimer.endAt) { b.style.display = 'none'; return; }
+  const left = sleepTimer.endAt - Date.now();
+  if (left <= 0) { b.style.display = 'none'; return; }
+  const t = Math.floor(left / 1000);
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  b.textContent = h > 0 ? ('⏱ ' + h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')) : ('⏱ ' + m + ':' + String(s).padStart(2, '0'));
+  b.style.display = 'inline-block';
+}
+
+// ======================== 播放控制 ========================
+function togglePlay() {
+  if (audioEngine.ctx && audioEngine.ctx.state === 'suspended') audioEngine.ctx.resume().catch(() => {});
+  if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+}
+audio.addEventListener('play', () => {
+  playBtn.textContent = '⏸';
+  if (audioEngine.ctx && audioEngine.ctx.state === 'suspended' && (audioEngine.enhanceEnabled || audioEngine.spatialEnabled)) audioEngine.ctx.resume().catch(() => {});
+});
+audio.addEventListener('pause', () => { playBtn.textContent = '▶'; });
+audio.addEventListener('loadedmetadata', () => { totalTimeEl.textContent = formatDuration(audio.duration); });
+audio.addEventListener('timeupdate', () => {
+  if (!audio.duration) return;
+  progressFill.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
+  currentTimeEl.textContent = formatDuration(audio.currentTime);
+});
+progressBar.addEventListener('click', e => {
+  if (!audio.duration) return;
+  const rect = progressBar.getBoundingClientRect();
+  audio.currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * audio.duration;
+});
+
+// ======================== 兑换码 / VIP ========================
+function generateCode(type) { let raw = type; for (let i = 0; i < 8; i++) raw += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; return raw[0] + '-' + raw.slice(1, 5) + '-' + raw.slice(5, 9); }
+function parseCode(input) {
+  const raw = String(input || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (raw.length !== 9) return { ok: false, reason: '兑换码长度不对，应为 9 位，当前 ' + raw.length + ' 位' };
+  if (!CODE_REGEX.test(raw)) return { ok: false, reason: '兑换码格式不正确' };
+  const type = TYPE_MAP[raw[0]];
+  if (!type) return { ok: false, reason: '兑换码类型无法识别' };
+  return { ok: true, type };
+}
+function getVip() {
+  try { const v = JSON.parse(storage.get(VIP_KEY) || 'null'); if (!v) return null; if (v.expireAt !== null && v.expireAt < Date.now()) { storage.remove(VIP_KEY); return null; } return v; } catch (e) { return null; }
+}
+function isVip() { return getVip() !== null; }
+function activateVip(type) {
+  const cur = getVip();
+  if (cur && cur.expireAt === null) return { ok: false, message: '你已经是终身 VIP 了' };
+  if (!(type in VIP_DURATIONS)) return { ok: false, message: '未知的 VIP 类型' };
+  let expireAt;
+  if (type === 'forever') expireAt = null;
+  else { const base = (cur && cur.expireAt) ? cur.expireAt : Date.now(); expireAt = Math.max(base, Date.now()) + VIP_DURATIONS[type]; }
+  const ok = storage.set(VIP_KEY, JSON.stringify({ type, expireAt, activatedAt: Date.now() }));
+  if (!ok) return { ok: false, message: '存储失败' };
+  if (type === 'forever') setTimeout(() => { autoUnlockForeverAchievements(); updateBlindBoxPanel(); }, 100);
+  return { ok: true, expireAt };
+}
+function autoUnlockForeverAchievements() {
+  ['first_box', 'box_10', 'first_unlock'].forEach((id, i) => {
+    if (unlockAchievement(id)) {
+      const a = ACHIEVEMENTS.find(x => x.id === id);
+      if (a) setTimeout(() => showToast('🏆 解锁成就「' + a.name + '」', false, true), 600 + i * 400);
+    }
+  });
+  if (document.getElementById('walletModal').classList.contains('show')) renderAchievements();
+}
+function formatRemaining(expireAt) {
+  if (expireAt === null) return { short: '永久', full: '永久有效' };
+  const ms = expireAt - Date.now();
+  if (ms <= 0) return { short: '已过期', full: '已过期' };
+  const d = Math.floor(ms / DAY_MS), h = Math.floor((ms % DAY_MS) / 3600000), m = Math.floor((ms % 3600000) / 60000), s = Math.floor((ms % 60000) / 1000);
+  let short = d > 0 ? (d + '天') : (h > 0 ? (h + '时') : (m > 0 ? (m + '分') : (s + '秒')));
+  const parts = []; if (d > 0) parts.push(d + '天'); if (d > 0 || h > 0) parts.push(h + '时'); if (d > 0 || h > 0 || m > 0) parts.push(m + '分'); parts.push(s + '秒');
+  return { short, full: parts.join(' ') };
+}
+function renderVipBadge() {
+  const v = getVip();
+  vipBadge.classList.remove('free', 'vip', 'forever');
+  if (!v) { vipBadge.textContent = '非 VIP'; vipBadge.classList.add('free'); trialTag.style.display = 'block'; }
+  else if (v.expireAt === null) { vipBadge.textContent = '✨ 终身 VIP'; vipBadge.classList.add('forever'); trialTag.style.display = 'none'; }
+  else { const r = formatRemaining(v.expireAt); if (r.short === '已过期') { vipBadge.textContent = '非 VIP'; vipBadge.classList.add('free'); trialTag.style.display = 'block'; return; } vipBadge.textContent = 'VIP · 剩 ' + r.short; vipBadge.classList.add('vip'); trialTag.style.display = 'none'; }
+}
+function updateRedeemStatus() {
+  const el = document.getElementById('redeemStatus');
+  if (!el) return;
+  const v = getVip();
+  if (!v) el.innerHTML = '<div class="vip-info-line">当前状态：非 VIP</div><div class="vip-info-line muted">只能试听 ' + TRIAL_SECONDS + ' 秒</div>';
+  else if (v.expireAt === null) el.innerHTML = '<div class="vip-info-line gold">✨ 终身 VIP</div><div class="vip-info-line muted">已解锁全部权限</div>';
+  else { const r = formatRemaining(v.expireAt); el.innerHTML = '<div class="vip-info-line green">VIP 剩余时间</div><div class="vip-info-countdown">' + r.full + '</div><div class="vip-info-line muted">可继续兑换叠加时长</div>'; }
+}
+setInterval(() => { renderVipBadge(); if (document.getElementById('redeemModal').classList.contains('show')) updateRedeemStatus(); }, 1000);
+
+// ======================== 银行卡 ========================
+function formatCardNo(n) { return String(n).replace(/(.{4})/g, '$1 ').trim(); }
+function getBank() { try { const b = JSON.parse(storage.get(BANK_KEY) || 'null'); if (b && typeof b.balance === 'number') return b; } catch (e) {} return { balance: BANK_INIT_BAL }; }
+function saveBank(b) { storage.set(BANK_KEY, JSON.stringify(b)); }
+function formatCardInput(el) { let v = el.value.replace(/\D/g, '').slice(0, 19); let out = ''; for (let i = 0; i < v.length; i++) { if (i > 0 && i % 4 === 0) out += ' '; out += v[i]; } el.value = out; }
+function normalizeCardNo(s) { return String(s || '').replace(/\s+/g, ''); }
+
+// ======================== 签到 ========================
+function getCheckinData() { try { const d = JSON.parse(storage.get(CHECKIN_KEY) || 'null'); if (d) return { lastDate: d.lastDate || '', streak: d.streak || 0, total: d.total || 0, history: d.history || {} }; } catch (e) {} return { lastDate: '', streak: 0, total: 0, history: {} }; }
+function saveCheckinData(d) { storage.set(CHECKIN_KEY, JSON.stringify(d)); }
+function renderCheckinPanel() {
+  const data = getCheckinData();
+  const today = todayStr(), yesterday = yesterdayStr();
+  const doneToday = data.lastDate === today;
+  let cycle = 0;
+  if (doneToday) cycle = data.streak % 7 === 0 ? 7 : data.streak % 7;
+  else if (data.lastDate === yesterday) cycle = data.streak % 7;
+  const grid = document.getElementById('checkinGrid');
+  let html = '';
+  for (let i = 1; i <= 7; i++) {
+    const done = i <= cycle;
+    const isToday = i === cycle + 1 && !doneToday;
+    html += '<div class="checkin-day' + (done ? ' done' : '') + (isToday ? ' today' : '') + '"><div class="d">' + i + '</div><div class="coin">' + (i === 7 ? '¥5.5' : '¥0.5') + '</div></div>';
+  }
+  grid.innerHTML = html;
+  document.getElementById('checkinInfo').innerHTML = '<div class="row">连续签到 <span class="green">' + data.streak + '</span> 天 · 累计签到 <span class="green">' + data.total + '</span> 天</div><div class="row" style="font-size:11px;color:#666;margin-top:4px">连续 7 天额外奖励 ¥5</div>';
+  const btn = document.getElementById('checkinBtn');
+  if (doneToday) { btn.disabled = true; btn.textContent = '今日已签到 ✓'; btn.style.background = '#26263a'; btn.style.color = '#666'; btn.style.cursor = 'not-allowed'; }
+  else { btn.disabled = false; btn.textContent = '今日签到 +¥0.5'; btn.style.background = '#1db954'; btn.style.color = '#000'; btn.style.cursor = 'pointer'; }
+  document.getElementById('checkinMsg').textContent = '';
+}
+function doCheckin() {
+  const data = getCheckinData();
+  const today = todayStr(), yesterday = yesterdayStr();
+  if (data.lastDate === today) { showToast('今天已经签到过了', true); return; }
+  let newStreak = data.lastDate === yesterday ? data.streak + 1 : 1;
+  let reward = CHECKIN_BASE, bonus = 0, bonusMsg = '';
+  if (newStreak % 7 === 0) { bonus = CHECKIN_BONUS7; reward += bonus; bonusMsg = ' 🎉 连续 7 天 +' + formatPrice(bonus); }
+  const bank = getBank(); bank.balance = parseFloat((bank.balance + reward).toFixed(2)); saveBank(bank);
+  data.lastDate = today; data.streak = newStreak; data.total++; data.history[today] = reward; saveCheckinData(data);
+  const msgEl = document.getElementById('checkinMsg'); msgEl.textContent = '签到成功！获得 ' + formatPrice(reward) + bonusMsg; msgEl.className = 'msg ok';
+  checkAchievements(); renderCheckinPanel(); renderWalletBalance();
+  if (bankVerified) { renderBankCard(); updatePayOptionStates(); }
+  showToast('签到成功 +' + formatPrice(reward), false, bonus > 0);
+}
+
+// ======================== 盲盒 ========================
+function getBoxCount() { try { const d = JSON.parse(storage.get('my_music_box_count_v1') || 'null'); if (d && typeof d.count === 'number') return d.count; } catch (e) {} return 0; }
+function incBoxCount() { const c = getBoxCount() + 1; storage.set('my_music_box_count_v1', JSON.stringify({ count: c })); return c; }
+function pickBlindBox() {
+  const total = BLIND_BOX_POOL.reduce((s, o) => s + o.weight, 0);
+  let r = Math.random() * total;
+  for (const o of BLIND_BOX_POOL) { r -= o.weight; if (r <= 0) return o; }
+  return BLIND_BOX_POOL[BLIND_BOX_POOL.length - 1];
+}
+function updateBlindBoxPanel() {
+  const btn = document.getElementById('blindBoxBtn'), display = document.getElementById('blindBoxDisplay');
+  const resultEl = document.getElementById('blindBoxResult'), poolEl = document.getElementById('blindBoxPool'), msgEl = document.getElementById('blindBoxMsg');
+  if (!btn || !display || !resultEl || !poolEl) return;
+  if (isForeverVip()) {
+    btn.textContent = '点一下，收一句祝福 💝'; btn.onclick = showBlessing;
+    display.textContent = '💝'; display.classList.add('bless');
+    resultEl.textContent = '你已拥有终身 VIP，盲盒升级为祝福盒 ✨'; resultEl.className = 'blind-box-result gold';
+    poolEl.style.display = 'none'; msgEl.textContent = '';
+  } else {
+    btn.textContent = '开一个盲盒 ¥9.9'; btn.onclick = openBlindBox;
+    display.textContent = '🎁'; display.classList.remove('bless');
+    resultEl.textContent = '点上方按钮，试试手气'; resultEl.className = 'blind-box-result';
+    poolEl.style.display = 'block'; msgEl.textContent = '';
+  }
+}
+async function showBlessing() {
+  if (blessingBusy) return;
+  const btn = document.getElementById('blindBoxBtn'), display = document.getElementById('blindBoxDisplay'), resultEl = document.getElementById('blindBoxResult');
+  if (!isForeverVip()) { updateBlindBoxPanel(); return; }
+  blessingBusy = true; btn.disabled = true;
+  display.classList.add('spinning'); resultEl.textContent = '正在给你挑一句祝福…'; resultEl.className = 'blind-box-result';
+  const emojis = ['💝', '💖', '✨', '🌸', '🎈', '🌟', '🕊️']; let idx = 0;
+  const interval = setInterval(() => { display.textContent = emojis[idx % emojis.length]; idx++; }, 100);
+  await new Promise(r => setTimeout(r, 1200));
+  clearInterval(interval);
+  display.classList.remove('spinning'); display.classList.add('opened');
+  setTimeout(() => display.classList.remove('opened'), 500);
+  display.textContent = '💝';
+  resultEl.textContent = BLESSINGS[Math.floor(Math.random() * BLESSINGS.length)];
+  resultEl.className = 'blind-box-result gold';
+  btn.disabled = false; blessingBusy = false;
+}
+async function openBlindBox() {
+  if (isForeverVip()) { updateBlindBoxPanel(); showToast('你已是终身 VIP，盲盒已升级为祝福盒 💝', false, true); return; }
+  const btn = document.getElementById('blindBoxBtn'), display = document.getElementById('blindBoxDisplay'), resultEl = document.getElementById('blindBoxResult'), msgEl = document.getElementById('blindBoxMsg');
+  msgEl.className = 'msg';
+  const bank = getBank();
+  if (bank.balance < BLIND_BOX_PRICE) { msgEl.textContent = '余额不足，需要 ' + formatPrice(BLIND_BOX_PRICE); msgEl.classList.add('err'); return; }
+  const ok = await showConfirm('开盲盒', '将花费 <span class="big-price">' + formatPrice(BLIND_BOX_PRICE) + '</span>', '开！', '算了');
+  if (!ok) return;
+  bank.balance = parseFloat((bank.balance - BLIND_BOX_PRICE).toFixed(2)); saveBank(bank);
+  display.classList.add('spinning'); display.textContent = '🎁'; resultEl.textContent = '正在打开…'; resultEl.className = 'blind-box-result';
+  btn.disabled = true; msgEl.textContent = '';
+  const emojis = ['🎁', '🎊', '🎉', '✨', '🎈']; let idx = 0;
+  const interval = setInterval(() => { display.textContent = emojis[idx % emojis.length]; idx++; }, 100);
+  await new Promise(r => setTimeout(r, 1500));
+  clearInterval(interval);
+  display.classList.remove('spinning'); display.classList.add('opened');
+  setTimeout(() => display.classList.remove('opened'), 500);
+  const result = pickBlindBox(); display.textContent = result.emoji; incBoxCount();
+  if (result.type === 'none') { resultEl.textContent = '😢 谢谢惠顾'; resultEl.className = 'blind-box-result gray'; msgEl.textContent = '很遗憾，什么都没抽到'; msgEl.className = 'msg err'; }
+  else {
+    const act = activateVip(result.type);
+    if (act.ok) {
+      resultEl.textContent = '🎉 恭喜抽到 ' + result.label + '！';
+      resultEl.className = 'blind-box-result ' + (result.type === 'forever' ? 'gold' : 'green');
+      msgEl.textContent = '已发放到你的账户'; msgEl.className = 'msg ok';
+      showToast(result.type === 'forever' ? '👑 恭喜抽到终身 VIP！' : ('🎉 抽到 ' + result.label), false, result.type === 'forever');
+    }
+  }
+  btn.disabled = false;
+  renderWalletBalance(); renderVipBadge(); updateRedeemStatus();
+  if (bankVerified) { renderBankCard(); updatePayOptionStates(); }
+  checkAchievements();
+  if (result.type === 'forever') setTimeout(updateBlindBoxPanel, 800);
+}
+
+// ======================== 成就 ========================
+function getAchievements() { try { const a = JSON.parse(storage.get(ACH_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function unlockAchievement(id) { const list = getAchievements(); if (list.indexOf(id) >= 0) return false; list.push(id); storage.set(ACH_KEY, JSON.stringify(list)); return true; }
+function checkAchievements() {
+  const unlocked = [];
+  const log = getVipLog(), checkin = getCheckinData(), boxCount = getBoxCount();
+  const gifts = getGiftData(), unlockedSongs = getUnlockedSongs();
+  const v = getVip(); const isForever = !!(v && v.expireAt === null);
+  if (checkin.total >= 1 && unlockAchievement('first_checkin')) unlocked.push('first_checkin');
+  if (checkin.streak >= 7 && unlockAchievement('streak_7')) unlocked.push('streak_7');
+  if (checkin.total >= 30 && unlockAchievement('total_30')) unlocked.push('total_30');
+  if (isForever) {
+    if (unlockAchievement('first_box')) unlocked.push('first_box');
+    if (unlockAchievement('box_10')) unlocked.push('box_10');
+    if (unlockAchievement('first_unlock')) unlocked.push('first_unlock');
+  } else {
+    if (boxCount >= 1 && unlockAchievement('first_box')) unlocked.push('first_box');
+    if (boxCount >= 10 && unlockAchievement('box_10')) unlocked.push('box_10');
+    if (unlockedSongs.length >= 1 && unlockAchievement('first_unlock')) unlocked.push('first_unlock');
+  }
+  if (gifts.length >= 1 && unlockAchievement('first_gift')) unlocked.push('first_gift');
+  const totalGift = gifts.reduce((s, g) => s + (g.amount || 0), 0);
+  if (totalGift >= 100 && unlockAchievement('gift_100')) unlocked.push('gift_100');
+  const totalSpent = log.filter(e => e.method === 'bank' && typeof e.amount === 'number').reduce((s, e) => s + e.amount, 0);
+  if (totalSpent >= 500 && unlockAchievement('spend_500')) unlocked.push('spend_500');
+  if (totalSpent >= 1399 && unlockAchievement('spend_1399')) unlocked.push('spend_1399');
+  if (isForever && unlockAchievement('vip_forever')) unlocked.push('vip_forever');
+  unlocked.forEach((id, i) => {
+    const a = ACHIEVEMENTS.find(x => x.id === id);
+    if (a) setTimeout(() => showToast('🏆 解锁成就「' + a.name + '」', false, true), 600 + i * 350);
+  });
+  if (document.getElementById('walletModal').classList.contains('show')) renderAchievements();
+}
+function renderAchievements() {
+  const owned = getAchievements();
+  document.getElementById('achievementsGrid').innerHTML = ACHIEVEMENTS.map(a => {
+    const un = owned.indexOf(a.id) >= 0;
+    return '<div class="ach-item' + (un ? ' unlocked' : '') + '"><div class="lock-mark">' + (un ? '✓' : '🔒') + '</div><div class="icon">' + a.icon + '</div><div class="name">' + escapeHtml(a.name) + '</div><div class="desc">' + escapeHtml(a.desc) + '</div></div>';
+  }).join('');
+}
+
+// ======================== 打赏 ========================
+function getGiftData() { try { const a = JSON.parse(storage.get(GIFT_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveGiftData(arr) { storage.set(GIFT_KEY, JSON.stringify(arr.slice(0, 200))); }
+function openGiftModal() {
+  if (!currentSong) { showToast('先播放一首歌再打赏', true); return; }
+  const s = normalizeSong(currentSong);
+  document.getElementById('giftSongName').textContent = '正在给「' + s.name + '」打赏';
+  document.getElementById('giftMsg').textContent = '';
+  renderGiftOptions();
+  openModal('giftModal');
+}
+function renderGiftOptions() {
+  document.getElementById('giftGrid').innerHTML = GIFT_OPTIONS.map(o => '<div class="gift-opt" onclick="doGift(' + o.amount + ')"><div class="emoji">' + o.emoji + '</div><div class="price">¥' + o.amount + '</div></div>').join('');
+}
+async function doGift(amount) {
+  if (!currentSong) { showToast('先播放一首歌再打赏', true); return; }
+  const msgEl = document.getElementById('giftMsg'); msgEl.className = 'msg';
+  const bank = getBank();
+  if (bank.balance < amount) { msgEl.textContent = '余额不足，需要 ' + formatPrice(amount); msgEl.classList.add('err'); return; }
+  if (amount >= 50) {
+    const s = normalizeSong(currentSong);
+    const ok = await showConfirm('确认打赏', '将给「' + escapeHtml(s.name) + '」打赏 <span class="big-price">' + formatPrice(amount) + '</span>', '确认打赏', '取消');
+    if (!ok) return;
+  }
+  bank.balance = parseFloat((bank.balance - amount).toFixed(2)); saveBank(bank);
+  const gifts = getGiftData(); const s = normalizeSong(currentSong);
+  gifts.unshift({ songId: s.id, songName: s.name, artist: s.artist.join(' / '), source: s.source, amount, at: Date.now() });
+  saveGiftData(gifts);
+  appendVipLog({ code: '打赏 · ' + s.name, type: 'gift', at: Date.now(), expireAfter: null, method: 'gift', amount });
+  renderWalletBalance();
+  if (bankVerified) { renderBankCard(); updatePayOptionStates(); }
+  msgEl.textContent = '打赏成功！'; msgEl.classList.add('ok');
+  showToast('打赏成功 ' + formatPrice(amount) + ' 💝');
+  checkAchievements();
+  setTimeout(() => closeModal('giftModal'), 1500);
+}
+function renderGiftList() {
+  const gifts = getGiftData(); const el = document.getElementById('giftList');
+  if (gifts.length === 0) { el.innerHTML = '<div class="gift-empty">还没有人打赏</div>'; return; }
+  const map = {};
+  gifts.forEach(g => { const k = g.songId + '_' + g.source; if (!map[k]) map[k] = { songName: g.songName, artist: g.artist, amount: 0, count: 0 }; map[k].amount += g.amount; map[k].count++; });
+  const arr = Object.values(map).sort((a, b) => b.amount - a.amount);
+  el.innerHTML = arr.map((g, i) => {
+    const cls = 'gift-item' + (i === 0 ? ' top1' : i === 1 ? ' top2' : i === 2 ? ' top3' : '');
+    const icon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+    return '<div class="' + cls + '"><div class="rank">' + icon + '</div><div class="song"><div class="t">' + escapeHtml(g.songName) + '</div><div class="a">' + escapeHtml(g.artist) + ' · ' + g.count + ' 次打赏</div></div><div class="amt">' + formatPrice(g.amount) + '</div></div>';
+  }).join('');
+}
+
+// ======================== 单曲解锁 ========================
+function getUnlockedSongs() { try { const a = JSON.parse(storage.get(UNLOCKED_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveUnlockedSongs(arr) { storage.set(UNLOCKED_KEY, JSON.stringify(arr)); }
+function getUnlockedSongDetails() { try { const a = JSON.parse(storage.get(UNLOCKED_DETAIL_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveUnlockedSongDetails(arr) { storage.set(UNLOCKED_DETAIL_KEY, JSON.stringify(arr.slice(0, 100))); }
+function isSongUnlocked(song) { const k = songKey(song); return k ? getUnlockedSongs().indexOf(k) >= 0 : false; }
+async function unlockSong(song) {
+  const s = normalizeSong(song);
+  if (!s || !s.id) { showToast('歌曲信息不完整', true); return; }
+  if (isVip()) { showToast('你已是 VIP，全站歌曲免费听'); return; }
+  if (isSongUnlocked(s)) { showToast('这首歌已经解锁过了'); return; }
+  const bank = getBank();
+  if (bank.balance < UNLOCK_PRICE) { showToast('余额不足，需要 ' + formatPrice(UNLOCK_PRICE), true); return; }
+  const ok = await showConfirm('单曲解锁', '花 <span class="big-price">' + formatPrice(UNLOCK_PRICE) + '</span>永久解锁「' + escapeHtml(s.name) + '」', '确认解锁', '取消');
+  if (!ok) return;
+  const bank2 = getBank(); bank2.balance = parseFloat((bank2.balance - UNLOCK_PRICE).toFixed(2)); saveBank(bank2);
+  const ua = getUnlockedSongs(); ua.push(songKey(s)); saveUnlockedSongs(ua);
+  const da = getUnlockedSongDetails().filter(x => songKey(x) !== songKey(s));
+  da.unshift({ id: s.id, name: s.name, artist: s.artist, source: s.source, unlockedAt: Date.now() });
+  saveUnlockedSongDetails(da);
+  appendVipLog({ code: '单曲解锁 · ' + s.name, type: 'unlock', at: Date.now(), expireAfter: null, method: 'unlock', amount: UNLOCK_PRICE });
+  renderWalletBalance();
+  if (bankVerified) { renderBankCard(); updatePayOptionStates(); }
+  refreshSongItemUI(songKey(s));
+  if (currentSong && songKey(currentSong) === songKey(s)) { audio.currentTime = 0; audio.play().catch(() => {}); }
+  showToast('🎵 解锁成功');
+  checkAchievements();
+}
+function refreshSongItemUI(key) {
+  const song = songCache[key]; if (!song) return;
+  document.querySelectorAll('.song-item').forEach(item => {
+    if (item.dataset.key === key) {
+      const nli = createSongItem(song);
+      if (item.classList.contains('active')) nli.classList.add('active');
+      item.replaceWith(nli);
+    }
+  });
+}
+function refreshAllSongItems() { Object.keys(songCache).forEach(k => refreshSongItemUI(k)); }
+
+// ======================== 播放队列 ========================
+function findPlayableIndex(startIdx, dir) {
+  if (!currentListSongs.length) return -1;
+  for (let i = startIdx; i >= 0 && i < currentListSongs.length; i += dir) {
+    const s = currentListSongs[i];
+    if (s && (isVip() || isSongUnlocked(s))) return i;
+  }
+  return -1;
+}
+async function playNext(auto) {
+  if (currentQueueIndex < 0) { if (!auto) showToast('当前没有播放列表', true); return; }
+  const nextIdx = findPlayableIndex(currentQueueIndex + 1, 1);
+  if (nextIdx < 0) { if (!auto) showToast('已经是最后一首了', true); return; }
+  currentQueueIndex = nextIdx;
+  const song = currentListSongs[nextIdx];
+  const li = Array.from(document.querySelectorAll('.song-item')).find(el => el.dataset.key === songKey(song));
+  await playSong(song, li);
+}
+async function playPrev() {
+  if (currentQueueIndex < 0) { showToast('当前没有播放列表', true); return; }
+  const prevIdx = findPlayableIndex(currentQueueIndex - 1, -1);
+  if (prevIdx < 0) { showToast('已经是第一首了', true); return; }
+  currentQueueIndex = prevIdx;
+  const song = currentListSongs[prevIdx];
+  const li = Array.from(document.querySelectorAll('.song-item')).find(el => el.dataset.key === songKey(song));
+  await playSong(song, li);
+}
+audio.addEventListener('ended', () => playNext(true));
+function updateQueueButtons() {
+  if (currentQueueIndex < 0 || currentListSongs.length === 0) { prevBtn.disabled = true; nextBtn.disabled = true; return; }
+  prevBtn.disabled = findPlayableIndex(currentQueueIndex - 1, -1) < 0;
+  nextBtn.disabled = findPlayableIndex(currentQueueIndex + 1, 1) < 0;
+}
+
+// ======================== 钱包 UI ========================
+function renderWalletBalance() {
+  const bank = getBank();
+  document.getElementById('walletBalance').textContent = formatPrice(bank.balance);
+  const v = getVip();
+  const sub = document.getElementById('walletSub');
+  if (!v) sub.textContent = '非 VIP · 只能试听 ' + TRIAL_SECONDS + ' 秒';
+  else if (v.expireAt === null) sub.textContent = '✨ 终身 VIP';
+  else sub.textContent = 'VIP 剩 ' + formatRemaining(v.expireAt).full;
+}
+document.getElementById('walletTabs').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#walletTabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const tab = btn.dataset.tab;
+  document.querySelectorAll('.wallet-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  if (tab === 'checkin') renderCheckinPanel();
+  if (tab === 'achievements') renderAchievements();
+  if (tab === 'gifts') renderGiftList();
+  if (tab === 'blindbox') updateBlindBoxPanel();
+});
+document.getElementById('giftBtn').addEventListener('click', openGiftModal);
+
+// ======================== 银行卡验证/支付 ========================
+function verifyBank() {
+  const cardEl = document.getElementById('bankCardInput'), pwdEl = document.getElementById('bankPwdInput'), msgEl = document.getElementById('bankMsg');
+  msgEl.className = 'msg';
+  const cardNo = normalizeCardNo(cardEl.value), pwd = pwdEl.value;
+  if (!cardNo) { msgEl.textContent = '请输入银行卡号'; msgEl.classList.add('err'); shakeEl(cardEl); return; }
+  if (cardNo.length !== 16) { msgEl.textContent = '卡号应为 16 位'; msgEl.classList.add('err'); shakeEl(cardEl); return; }
+  if (cardNo !== BANK_CARD_NO) { msgEl.textContent = '卡号不存在'; msgEl.classList.add('err'); shakeEl(cardEl); return; }
+  if (!pwd) { msgEl.textContent = '请输入密码'; msgEl.classList.add('err'); shakeEl(pwdEl); return; }
+  if (pwd !== BANK_PASSWORD) { msgEl.textContent = '密码错误'; msgEl.classList.add('err'); shakeEl(pwdEl); pwdEl.value = ''; return; }
+  bankVerified = true;
+  msgEl.textContent = '';
+  cardEl.value = ''; pwdEl.value = '';
+  showBankAuthed();
+  showToast('验证成功，欢迎使用');
+}
+function showBankAuthed() {
+  document.getElementById('bankVerifySection').style.display = 'none';
+  document.getElementById('bankAuthedSection').style.display = 'block';
+  renderBankCard(); renderPayOptions(); updatePayOptionStates();
+}
+function bankLogout() {
+  bankVerified = false;
+  document.getElementById('bankVerifySection').style.display = 'block';
+  document.getElementById('bankAuthedSection').style.display = 'none';
+  document.getElementById('bankMsg').textContent = '';
+  document.getElementById('bankAuthMsg').textContent = '';
+}
+function renderBankCard() {
+  if (!bankVerified) return;
+  const bank = getBank();
+  document.getElementById('bankCardNo').textContent = formatCardNo(BANK_CARD_NO);
+  const balEl = document.getElementById('bankBalance');
+  balEl.textContent = formatPrice(bank.balance);
+  const minPrice = Math.min(...PAY_OPTIONS.map(o => o.price));
+  balEl.style.color = bank.balance < minPrice ? '#ff4d6d' : '#fff';
+}
+function renderPayOptions() {
+  const grid = document.getElementById('payGrid');
+  grid.innerHTML = PAY_OPTIONS.map(opt => {
+    const cls = 'pay-option' + (opt.premium ? ' premium' : '');
+    const tag = opt.tag ? '<span class="po-tag">' + opt.tag + '</span>' : '';
+    const orig = opt.origPrice ? '<span class="po-orig">' + formatPriceShort(opt.origPrice) + '</span>' : '';
+    return '<div class="' + cls + '" data-type="' + opt.type + '" data-default-desc="' + opt.desc + '"><div class="po-name">' + opt.name + tag + '</div><div class="po-price-row"><span class="po-price">' + formatPriceShort(opt.price) + '</span>' + orig + '</div><div class="po-desc">' + opt.desc + '</div></div>';
+  }).join('');
+  grid.querySelectorAll('.pay-option').forEach(el => el.addEventListener('click', () => doBankPay(el.dataset.type)));
+}
+function updatePayOptionStates() {
+  if (!bankVerified) return;
+  const bank = getBank(), v = getVip(), alreadyForever = v && v.expireAt === null;
+  document.querySelectorAll('.pay-option').forEach(el => {
+    const type = el.dataset.type, price = PRICE_MAP[type], ins = bank.balance < price;
+    el.classList.remove('insufficient', 'locked');
+    if (alreadyForever) el.classList.add('locked');
+    else if (ins) el.classList.add('insufficient');
+    const desc = el.querySelector('.po-desc');
+    if (desc) { if (alreadyForever) desc.textContent = '你已是终身 VIP'; else if (ins) desc.textContent = '还差 ' + formatPriceShort(price - bank.balance); else desc.textContent = el.dataset.defaultDesc || ''; }
+  });
+}
+async function doBankPay(type) {
+  if (!bankVerified) { showToast('请先验证银行卡', true); return; }
+  const msgEl = document.getElementById('bankAuthMsg'); msgEl.className = 'msg';
+  if (!(type in PRICE_MAP)) { showToast('未知的支付类型', true); return; }
+  const curVip = getVip();
+  if (curVip && curVip.expireAt === null) { showToast('你已是终身 VIP，无需支付', true); return; }
+  const price = PRICE_MAP[type], priceStr = formatPriceShort(price), typeName = TYPE_NAMES[type], bank = getBank();
+  if (bank.balance < price) { const need = price - bank.balance; showToast('余额不足，还需 ' + formatPriceShort(need), true); msgEl.innerHTML = '余额不足：当前 ' + formatPrice(bank.balance) + '，需要 ' + priceStr; msgEl.classList.add('err'); return; }
+  if (price >= CONFIRM_THRESHOLD) {
+    const isForever = type === 'forever';
+    const ok = await showConfirm(isForever ? '确认开通终身 VIP？' : '确认支付', '即将开通 <b style="color:#1db954">' + typeName + ' VIP</b><span class="big-price">' + priceStr + '</span><div class="row">' + formatPrice(bank.balance) + ' → ' + formatPrice(bank.balance - price) + '</div>', isForever ? '确认支付' : '确认');
+    if (!ok) return;
+  }
+  bank.balance = parseFloat((bank.balance - price).toFixed(2)); saveBank(bank);
+  const act = activateVip(type);
+  if (!act.ok) { bank.balance = parseFloat((bank.balance + price).toFixed(2)); saveBank(bank); msgEl.textContent = act.message; msgEl.classList.add('err'); renderBankCard(); updatePayOptionStates(); return; }
+  appendVipLog({ code: '银行卡 · ' + BANK_CARD_NO.slice(-4) + ' · ' + priceStr, type, at: Date.now(), expireAfter: act.expireAt, method: 'bank', amount: price });
+  renderBankCard(); updatePayOptionStates(); renderVipBadge(); updateRedeemStatus();
+  if (type === 'forever') { msgEl.textContent = '🎉 终身 VIP 开通成功！'; msgEl.classList.add('ok'); showToast('🎉 恭喜你成为终身 VIP！', false, true); }
+  else { msgEl.textContent = '支付成功！已开通「' + typeName + ' VIP」'; msgEl.classList.add('ok'); showToast('支付成功 🎉'); }
+  refreshAllSongItems(); updateQueueButtons(); checkAchievements();
+}
+
+// ======================== 兑换记录 ========================
+function getVipLog() { try { const a = JSON.parse(storage.get(VIP_LOG_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function appendVipLog(entry) { const log = getVipLog(); log.unshift(entry); storage.set(VIP_LOG_KEY, JSON.stringify(log.slice(0, 100))); }
+function renderVipLog() {
+  const log = getVipLog(); const el = document.getElementById('logList');
+  if (log.length === 0) { el.innerHTML = '<div class="log-empty">暂无兑换记录</div>'; return; }
+  el.innerHTML = log.map(e => {
+    const expired = e.expireAfter !== null && e.expireAfter < Date.now();
+    const isBank = e.method === 'bank';
+    const isForever = e.type === 'forever';
+    const isGift = e.type === 'gift';
+    const isUnlock = e.type === 'unlock';
+    let typeName = TYPE_NAMES[e.type];
+    if (isGift) typeName = '打赏';
+    if (isUnlock) typeName = '单曲解锁';
+    if (!typeName) typeName = e.type;
+    let expStr = '';
+    if (e.expireAfter === null) expStr = (isGift || isUnlock) ? '' : '永久有效';
+    else if (e.expireAfter) expStr = (expired ? '已过期 · ' : '到期 ') + formatTime(e.expireAfter);
+    const cls = 'log-item' + (expired ? ' expired' : '') + (isBank ? ' bank' : '') + (isForever ? ' forever' : '');
+    return '<div class="' + cls + '"><div class="log-row1"><span class="log-type">' + typeName + (isGift ? '' : ' VIP') + (isBank ? ' 💳' : '') + (isForever ? ' 👑' : '') + (isGift ? ' 💝' : '') + (isUnlock ? ' 🎵' : '') + '</span><span class="log-time">' + formatTime(e.at) + '</span></div><div class="log-row2"><span class="log-code">' + escapeHtml(e.code) + '</span><span class="log-exp">' + expStr + '</span></div></div>';
+  }).join('');
+}
+function clearLog() { if (!confirm('确定清空全部兑换记录？')) return; storage.remove(VIP_LOG_KEY); renderVipLog(); showToast('已清空'); }
+
+// ======================== 兑换弹窗 ========================
+vipBadge.addEventListener('click', () => {
+  document.getElementById('redeemMsg').textContent = '';
+  document.getElementById('bankMsg').textContent = '';
+  document.getElementById('bankAuthMsg').textContent = '';
+  document.getElementById('redeemInput').value = '';
+  document.getElementById('bankCardInput').value = '';
+  document.getElementById('bankPwdInput').value = '';
+  document.getElementById('diagBox').classList.remove('show');
+  bankVerified = false;
+  document.getElementById('bankVerifySection').style.display = 'block';
+  document.getElementById('bankAuthedSection').style.display = 'none';
+  updateRedeemStatus();
+  openModal('redeemModal');
+  setTimeout(() => {
+    const ap = document.querySelector('#payTabs button.active').dataset.pay;
+    if (ap === 'bank') document.getElementById('bankCardInput').focus();
+    else document.getElementById('redeemInput').focus();
+  }, 100);
+});
+function clearRedeemMsg() { const m = document.getElementById('redeemMsg'); if (m.textContent) { m.textContent = ''; m.className = 'msg'; } }
+function doRedeem() {
+  const inputEl = document.getElementById('redeemInput'), msgEl = document.getElementById('redeemMsg');
+  const raw = inputEl.value.trim(); msgEl.className = 'msg';
+  if (!raw) { msgEl.textContent = '请先输入兑换码'; msgEl.classList.add('err'); shakeEl(inputEl); return; }
+  const result = parseCode(raw);
+  if (!result.ok) { msgEl.textContent = result.reason; msgEl.classList.add('err'); shakeEl(inputEl); return; }
+  const act = activateVip(result.type);
+  if (!act.ok) { msgEl.textContent = act.message; msgEl.classList.add('err'); return; }
+  const nc = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^([DMP])(.{4})(.{4})$/, '$1-$2-$3');
+  appendVipLog({ code: nc, type: result.type, at: Date.now(), expireAfter: act.expireAt, method: 'code' });
+  msgEl.textContent = '兑换成功！已激活 ' + TYPE_NAMES[result.type] + ' VIP';
+  msgEl.classList.add('ok');
+  renderVipBadge(); updateRedeemStatus();
+  showToast('VIP 兑换成功 🎉');
+  setTimeout(() => closeModal('redeemModal'), 1200);
+  refreshAllSongItems(); updateQueueButtons(); checkAchievements();
+  if (result.type === 'forever') setTimeout(updateBlindBoxPanel, 600);
+}
+document.getElementById('payTabs').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#payTabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const mode = btn.dataset.pay;
+  document.getElementById('payCodeArea').style.display = mode === 'code' ? 'block' : 'none';
+  document.getElementById('payBankArea').style.display = mode === 'bank' ? 'block' : 'none';
+  if (mode === 'bank') {
+    if (bankVerified) {
+      document.getElementById('bankVerifySection').style.display = 'none';
+      document.getElementById('bankAuthedSection').style.display = 'block';
+      renderBankCard(); renderPayOptions(); updatePayOptionStates();
+    } else {
+      document.getElementById('bankVerifySection').style.display = 'block';
+      document.getElementById('bankAuthedSection').style.display = 'none';
+      setTimeout(() => document.getElementById('bankCardInput').focus(), 100);
+    }
+  } else setTimeout(() => document.getElementById('redeemInput').focus(), 100);
+});
+
+// ======================== 诊断 ========================
+function runDiagnose() {
+  const box = document.getElementById('diagBox'); const lines = [];
+  lines.push('=== 诊断 ===');
+  lines.push('存储层: ' + STORAGE_DESC[storage.type].name);
+  lines.push('VIP: ' + (storage.get(VIP_KEY) || '(空)'));
+  lines.push('记录: ' + getVipLog().length + ' 条');
+  lines.push('余额: ' + formatPrice(getBank().balance));
+  lines.push('登录: ' + (bankVerified ? '已登录' : '未登录'));
+  lines.push('');
+  lines.push('=== 音频引擎 ===');
+  lines.push('音质增强: ' + (audioEngine.enhanceEnabled ? '开' : '关'));
+  lines.push('空间音频: ' + (audioEngine.spatialEnabled ? ('开 / ' + audioEngine.spatialMode) : '关'));
+  lines.push('当前音质: ' + audioEngine.lastQuality.tag + ' (br=' + audioEngine.lastQuality.br + ')');
+  if (audioEngine.ctx) { lines.push('AudioContext: ' + audioEngine.ctx.state); lines.push('采样率: ' + audioEngine.ctx.sampleRate + ' Hz'); }
+  else lines.push('AudioContext: 未创建');
+  box.innerHTML = lines.join('\n'); box.classList.add('show');
+}
+
+// ======================== 试听限制 ========================
+audio.addEventListener('timeupdate', () => {
+  updateLyricDisplay(audio.currentTime);
+  if (isVip()) return;
+  if (currentSong && isSongUnlocked(currentSong)) return;
+  if (audio.currentTime >= TRIAL_SECONDS) {
+    audio.pause(); audio.currentTime = 0; showTrialChoice();
+  }
+});
+function showTrialChoice() {
+  const s = currentSong ? normalizeSong(currentSong) : null;
+  if (!s) return;
+  showConfirm('试听已结束', '「' + escapeHtml(s.name) + '」试听结束<div class="row">单曲解锁 ' + formatPrice(UNLOCK_PRICE) + ' 永久可听，或开通 VIP</div>', '花 ' + formatPrice(UNLOCK_PRICE) + ' 解锁本曲', '去开通 VIP').then(ok => {
+    if (ok) unlockSong(currentSong);
+    else {
+      document.getElementById('redeemMsg').textContent = '';
+      document.getElementById('bankMsg').textContent = '';
+      document.getElementById('bankAuthMsg').textContent = '';
+      document.getElementById('redeemInput').value = '';
+      document.getElementById('bankCardInput').value = '';
+      document.getElementById('bankPwdInput').value = '';
+      bankVerified = false;
+      document.getElementById('bankVerifySection').style.display = 'block';
+      document.getElementById('bankAuthedSection').style.display = 'none';
+      updateRedeemStatus();
+      openModal('redeemModal');
+    }
+  });
+}
+
+// ======================== 歌词 ========================
+function parseLrc(text) {
+  const result = []; const lines = String(text).split(/\r?\n/);
+  const timeRe = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]/g;
+  for (const line of lines) {
+    timeRe.lastIndex = 0;
+    const times = []; let m;
+    while ((m = timeRe.exec(line)) !== null) {
+      const min = parseInt(m[1], 10), sec = parseInt(m[2], 10);
+      let ms = 0;
+      if (m[3]) { const f = m[3]; ms = f.length === 1 ? parseInt(f, 10) * 100 : f.length === 2 ? parseInt(f, 10) * 10 : parseInt(f.slice(0, 3), 10); }
+      times.push(min * 60 + sec + ms / 1000);
+    }
+    const t = line.replace(timeRe, '').trim();
+    if (times.length > 0 && t) times.forEach(tt => result.push({ time: tt, text: t }));
+  }
+  result.sort((a, b) => a.time - b.time);
+  return result;
+}
+async function loadLyric(song) {
+  const s = normalizeSong(song); if (!s || !s.id) return;
+  const key = songKey(s); lyricLoadingFor = key;
+  currentLyrics = []; currentLyricIndex = -1;
+  document.getElementById('currentLyric').textContent = '歌词加载中…';
+  renderLyricPanel();
+  try {
+    const url = API_BASE + '?types=lyric&id=' + encodeURIComponent(s.id) + '&source=' + encodeURIComponent(s.source);
+    const data = await fetchWithRetry(url);
+    if (lyricLoadingFor !== key) return;
+    const lt = (data && (data.lyric || data.lrc)) || '';
+    if (!lt) { document.getElementById('currentLyric').textContent = '♪ 暂无歌词'; currentLyrics = []; renderLyricPanel(); return; }
+    currentLyrics = parseLrc(lt);
+    if (currentLyrics.length === 0) { document.getElementById('currentLyric').textContent = '♪ 暂无歌词'; renderLyricPanel(); return; }
+    document.getElementById('currentLyric').textContent = '♪ 点击查看完整歌词';
+    renderLyricPanel();
+    updateLyricDisplay(audio.currentTime);
+  } catch (err) {
+    if (lyricLoadingFor !== key) return;
+    document.getElementById('currentLyric').textContent = '♪ 歌词加载失败';
+    renderLyricPanel();
+  }
+}
+function updateLyricDisplay(ct) {
+  if (currentLyrics.length === 0) return;
+  let idx = -1;
+  for (let i = 0; i < currentLyrics.length; i++) { if (currentLyrics[i].time <= ct) idx = i; else break; }
+  if (idx === currentLyricIndex) return;
+  currentLyricIndex = idx;
+  if (idx >= 0 && currentLyrics[idx]) document.getElementById('currentLyric').textContent = currentLyrics[idx].text;
+  const rows = document.querySelectorAll('.lyric-row');
+  rows.forEach((r, i) => r.classList.toggle('active', i === idx));
+  if (idx >= 0 && rows[idx] && document.getElementById('lyricPanel').classList.contains('show')) rows[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function renderLyricPanel() {
+  const body = document.getElementById('lyricBody');
+  if (currentLyrics.length === 0) { body.innerHTML = '<div class="lyric-empty">暂无歌词</div>'; return; }
+  body.innerHTML = currentLyrics.map((l, i) => '<div class="lyric-row" data-i="' + i + '" onclick="seekToLyric(' + i + ')">' + escapeHtml(l.text) + '</div>').join('');
+}
+function seekToLyric(i) { if (currentLyrics[i]) { audio.currentTime = currentLyrics[i].time; currentLyricIndex = -1; updateLyricDisplay(audio.currentTime); } }
+function openLyricPanel() {
+  if (!currentSong) return;
+  const s = normalizeSong(currentSong);
+  document.getElementById('lyricPanelTitle').textContent = s.name + (s.artist.length > 0 ? ' - ' + s.artist.join(' / ') : '');
+  document.getElementById('lyricPanel').classList.add('show');
+  setTimeout(() => { const rows = document.querySelectorAll('.lyric-row'); if (currentLyricIndex >= 0 && rows[currentLyricIndex]) rows[currentLyricIndex].scrollIntoView({ behavior: 'auto', block: 'center' }); }, 100);
+}
+function closeLyricPanel() { document.getElementById('lyricPanel').classList.remove('show'); }
+document.getElementById('lyricPanel').addEventListener('click', e => { if (e.target.id === 'lyricPanel') closeLyricPanel(); });
+
+// ======================== 列表项 ========================
+function createSongItem(rawSong) {
+  const song = normalizeSong(rawSong);
+  songCache[songKey(song)] = song;
+  const li = document.createElement('li');
+  li.className = 'song-item';
+  li.dataset.key = songKey(song);
+  const artistText = song.artist.length > 0 ? song.artist.join(' / ') : '未知歌手';
+  const unlocked = isSongUnlocked(song);
+  const vip = isVip();
+  let actionHtml = '';
+  if (vip) actionHtml = '<span class="vip-mark">VIP</span>';
+  else if (unlocked) actionHtml = '<span class="unlocked-mark">✓</span>';
+  else actionHtml = '<button class="buy-btn" title="单曲解锁">¥' + UNLOCK_PRICE + '</button>';
+  li.innerHTML = '<div class="info"><div class="title">' + escapeHtml(song.name) + '</div><div class="artist">' + escapeHtml(artistText) + '</div></div>' + actionHtml;
+  const buyBtn = li.querySelector('.buy-btn');
+  if (buyBtn) buyBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); unlockSong(song); });
+  li.addEventListener('click', () => playSong(song, li));
+  return li;
+}
+
+// ======================== 搜索 ========================
+function updateResultInfo() {
+  if (!searchKeyword) { resultInfoEl.classList.remove('show'); resultInfoEl.innerHTML = ''; return; }
+  resultInfoEl.classList.add('show');
+  resultInfoEl.innerHTML = '「' + escapeHtml(searchKeyword) + '」已加载 <span class="count">' + searchTotal + '</span> 首';
+}
+function updateLoadMoreBtn() {
+  if (!searchKeyword) { loadMoreWrap.style.display = 'none'; return; }
+  if (searchPage >= MAX_PAGES) { loadMoreWrap.style.display = 'block'; loadMoreBtn.disabled = true; loadMoreBtn.textContent = '已达最大页数'; loadMoreHint.textContent = '最多 ' + MAX_PAGES + ' 页'; return; }
+  loadMoreWrap.style.display = 'block'; loadMoreBtn.disabled = false; loadMoreBtn.textContent = '加载更多'; loadMoreHint.textContent = '已加载 ' + searchPage + ' 页';
+}
+async function fetchSearchPage(keyword, source, page) {
+  const url = API_BASE + '?types=search&source=' + source + '&name=' + encodeURIComponent(keyword) + '&count=' + SEARCH_PAGE_SIZE + '&pages=' + page;
+  const data = await fetchWithRetry(url);
+  return Array.isArray(data) ? data : [];
+}
+async function searchMusic() {
+  const keyword = document.getElementById('keyword').value.trim();
+  if (!keyword || isRequesting) return;
+  searchKeyword = keyword; searchPage = 0; searchTotal = 0;
+  Object.keys(songCache).forEach(k => delete songCache[k]);
+  isRequesting = true; searchBtn.disabled = true; searchBtn.textContent = '搜索中…';
+  listEl.innerHTML = ''; loadMoreWrap.style.display = 'none'; resultInfoEl.classList.remove('show');
+  setStatus(statusEl, '正在搜索…');
+  try {
+    const songs = await fetchSearchPage(keyword, currentSource, 1);
+    searchPage = 1;
+    if (songs.length === 0) { setStatus(statusEl, '没有找到相关歌曲'); updateResultInfo(); return; }
+    songs.forEach(s => { if (!s.source) s.source = currentSource; });
+    searchTotal = songs.length;
+    currentListSongs = songs.map(normalizeSong);
+    setStatus(statusEl, '');
+    listEl.innerHTML = '';
+    songs.forEach(song => {
+      const li = createSongItem(song);
+      if (currentPlayingKey === songKey(song)) li.classList.add('active');
+      listEl.appendChild(li);
+    });
+    updateResultInfo(); updateLoadMoreBtn(); updateQueueButtons();
+  } catch (err) { setStatus(statusEl, '搜索失败：接口暂时不可用', true); }
+  finally { isRequesting = false; searchBtn.disabled = false; searchBtn.textContent = '搜索'; }
+}
+async function loadMoreSearch() {
+  if (isRequesting || !searchKeyword || searchPage >= MAX_PAGES) return;
+  isRequesting = true; loadMoreBtn.disabled = true; loadMoreBtn.textContent = '加载中…';
+  try {
+    const songs = await fetchSearchPage(searchKeyword, currentSource, searchPage + 1);
+    if (songs.length === 0) { loadMoreBtn.textContent = '没有更多了'; loadMoreBtn.disabled = true; loadMoreHint.textContent = '已加载全部 ' + searchTotal + ' 首'; return; }
+    songs.forEach(s => { if (!s.source) s.source = currentSource; });
+    searchTotal += songs.length; searchPage++;
+    songs.map(normalizeSong).forEach(s => currentListSongs.push(s));
+    songs.forEach(song => {
+      const li = createSongItem(song);
+      if (currentPlayingKey === songKey(song)) li.classList.add('active');
+      listEl.appendChild(li);
+    });
+    updateResultInfo(); updateLoadMoreBtn(); updateQueueButtons();
+  } catch (err) { showToast('加载更多失败', true); loadMoreBtn.disabled = false; loadMoreBtn.textContent = '加载更多'; }
+  finally { isRequesting = false; }
+}
+
+// ======================== 播放（含音质降级） ========================
+async function playSong(rawSong, liEl) {
+  if (isRequesting) return;
+  const song = normalizeSong(rawSong);
+  const key = songKey(song);
+  const idx = currentListSongs.findIndex(s => songKey(s) === key);
+  if (idx >= 0) currentQueueIndex = idx;
+  document.querySelectorAll('.song-item.active').forEach(el => el.classList.remove('active'));
+  if (liEl) liEl.classList.add('active');
+  currentSong = song;
+  currentPlayingKey = key;
+  document.getElementById('playerBar').classList.add('show');
+  document.getElementById('nowTitle').textContent = song.name;
+  document.getElementById('nowArtist').textContent = song.artist.length > 0 ? song.artist.join(' / ') : '';
+  document.getElementById('currentLyric').textContent = '歌词加载中…';
+  renderVipBadge();
+  currentLyrics = []; currentLyricIndex = -1;
+  renderLyricPanel();
+  isRequesting = true;
+
+  // ★ 按音质优先级尝试获取播放地址
+  let success = false;
+  let lastError = null;
+  for (const q of AUDIO_QUALITY_CHAIN) {
+    try {
+      const url = API_BASE + '?types=url&id=' + encodeURIComponent(song.id) + '&source=' + encodeURIComponent(song.source || currentSource) + '&br=' + q.br;
+      const data = await fetchWithRetry(url);
+      if (data && data.url) {
+        audio.src = data.url;
+        audioEngine.lastQuality = { br: q.br, tag: q.tag };
+        updateHifiBadge();
+        recordPlayHistory(song);
+        audio.play().catch(() => showToast('浏览器拦截了自动播放', true));
+        loadLyric(song);
+        success = true;
+        // 如果是无损，给个小提示
+        if (q.br === '999') console.log('[音质] 使用无损 FLAC');
+        break;
+      }
+    } catch (err) { lastError = err; }
+  }
+
+  if (!success) {
+    showToast('所有音质均获取失败，可能受版权限制', true);
+    document.getElementById('currentLyric').textContent = '♪ 加载失败';
+    audioEngine.lastQuality = { br: '-', tag: '--' };
+    updateHifiBadge();
+  }
+
+  isRequesting = false;
+  updateQueueButtons();
+}
+
+function updateHifiBadge() {
+  const q = audioEngine.lastQuality;
+  hifiBadge.textContent = q.tag;
+  hifiBadge.classList.toggle('on', q.br === '999');
+  hifiBadge.style.color = q.br === '999' ? '#ffd700' : (q.br === '320' ? '#6a9eff' : '#888');
+}
+
+// ======================== 音源切换 ========================
+document.getElementById('sourceTabs').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn || isRequesting) return;
+  document.querySelectorAll('#sourceTabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentSource = btn.dataset.source;
+  listEl.innerHTML = '';
+  searchKeyword = ''; searchPage = 0; searchTotal = 0;
+  currentListSongs = []; currentQueueIndex = -1;
+  loadMoreWrap.style.display = 'none';
+  resultInfoEl.classList.remove('show');
+  updateQueueButtons();
+  setStatus(statusEl, '已切换到 ' + btn.textContent + '，输入关键词搜索');
+});
+
+// ======================== 后台入口 ========================
+let titleClicks = 0, titleTimer = null;
+document.getElementById('appTitle').addEventListener('click', () => {
+  titleClicks++;
+  clearTimeout(titleTimer);
+  if (titleClicks >= 5) {
+    titleClicks = 0;
+    document.getElementById('adminPwdInput').value = '';
+    document.getElementById('adminPwdMsg').textContent = '';
+    openModal('adminPwdModal');
+    setTimeout(() => document.getElementById('adminPwdInput').focus(), 100);
+  } else titleTimer = setTimeout(() => { titleClicks = 0; }, 1500);
+});
+function verifyAdminPwd() {
+  const pwdEl = document.getElementById('adminPwdInput'), msgEl = document.getElementById('adminPwdMsg');
+  const pwd = pwdEl.value; msgEl.className = 'msg';
+  if (!pwd) { msgEl.textContent = '请输入管理员密码'; msgEl.classList.add('err'); shakeEl(pwdEl); return; }
+  if (pwd !== ADMIN_PASSWORD) { msgEl.textContent = '管理员密码错误'; msgEl.classList.add('err'); shakeEl(pwdEl); pwdEl.value = ''; return; }
+  closeModal('adminPwdModal'); pwdEl.value = ''; msgEl.textContent = '';
+  openAdminMain();
+}
+function openAdminMain() {
+  adminCardVerified = false; resetAdminBalancePanel();
+  document.querySelectorAll('#adminTabs button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#adminTabs button[data-tab="gen"]').classList.add('active');
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('adminPanelGen').classList.add('active');
+  document.getElementById('genResult').innerHTML = '';
+  document.getElementById('adminAmount').value = '';
+  refreshAdminInfo();
+  openModal('adminModal');
+}
+document.getElementById('adminTabs').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#adminTabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const tab = btn.dataset.tab;
+  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('adminPanel' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  if (tab === 'balance') { if (!adminCardVerified) resetAdminBalancePanel(); else showAdminBalanceOps(); }
+  if (tab === 'info') refreshAdminInfo();
+});
+function resetAdminBalancePanel() {
+  document.getElementById('adminBalanceVerify').style.display = 'block';
+  document.getElementById('adminBalanceOps').style.display = 'none';
+  document.getElementById('adminCardInput').value = '';
+  document.getElementById('adminCardMsg').textContent = '';
+}
+function verifyAdminCard() {
+  const cardEl = document.getElementById('adminCardInput'), msgEl = document.getElementById('adminCardMsg');
+  const cardNo = normalizeCardNo(cardEl.value); msgEl.className = 'msg';
+  if (!cardNo) { msgEl.textContent = '请输入银行卡号'; msgEl.classList.add('err'); shakeEl(cardEl); return; }
+  if (cardNo !== BANK_CARD_NO) { msgEl.textContent = '卡号错误'; msgEl.classList.add('err'); shakeEl(cardEl); return; }
+  adminCardVerified = true; cardEl.value = ''; msgEl.textContent = '';
+  showAdminBalanceOps(); showToast('卡号验证通过');
+}
+function showAdminBalanceOps() {
+  document.getElementById('adminBalanceVerify').style.display = 'none';
+  document.getElementById('adminBalanceOps').style.display = 'block';
+  refreshAdminBalance();
+}
+function lockAdminBalance() { adminCardVerified = false; resetAdminBalancePanel(); showToast('已锁定'); }
+function refreshAdminBalance() {
+  const bank = getBank();
+  document.getElementById('adminBalance').textContent = formatPrice(bank.balance);
+  const sub = document.getElementById('adminBalanceSub');
+  const timesDay = Math.floor(bank.balance / PRICE_MAP.day);
+  const canForever = bank.balance >= PRICE_MAP.forever;
+  sub.textContent = '可支付 ' + timesDay + ' 次 1天VIP' + (canForever ? ' · 可支付终身VIP' : ' · 终身VIP还差 ' + formatPrice(PRICE_MAP.forever - bank.balance));
+}
+function adminSetMsg(text, ok) {
+  const el = document.getElementById('adminMsg');
+  el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err');
+  clearTimeout(el._timer); el._timer = setTimeout(() => { el.textContent = ''; el.className = 'msg'; }, 2500);
+}
+function getAmount() { const v = parseFloat(document.getElementById('adminAmount').value); return (isFinite(v) && v > 0) ? v : null; }
+function checkAdminCard() { if (!adminCardVerified) { showToast('请先验证银行卡号', true); return false; } return true; }
+function adminAdd() {
+  if (!checkAdminCard()) return;
+  const v = getAmount(); if (v === null) return adminSetMsg('请输入有效金额', false);
+  const bank = getBank(); bank.balance = parseFloat((bank.balance + v).toFixed(2)); saveBank(bank);
+  refreshAdminBalance(); adminSetMsg('已增加 ' + formatPrice(v), true);
+}
+function adminSub() {
+  if (!checkAdminCard()) return;
+  const v = getAmount(); if (v === null) return adminSetMsg('请输入有效金额', false);
+  const bank = getBank();
+  if (bank.balance < v) return adminSetMsg('余额不足', false);
+  bank.balance = parseFloat((bank.balance - v).toFixed(2)); saveBank(bank);
+  refreshAdminBalance(); adminSetMsg('已减少 ' + formatPrice(v), true);
+}
+function adminSet() {
+  if (!checkAdminCard()) return;
+  const v = getAmount(); if (v === null) return adminSetMsg('请输入有效金额', false);
+  const bank = getBank(); bank.balance = parseFloat(v.toFixed(2)); saveBank(bank);
+  refreshAdminBalance(); adminSetMsg('已设为 ' + formatPrice(bank.balance), true);
+}
+function adminQuick(delta) {
+  if (!checkAdminCard()) return;
+  const bank = getBank(); const nb = parseFloat((bank.balance + delta).toFixed(2));
+  if (nb < 0) { adminSetMsg('余额不能为负', false); return; }
+  bank.balance = nb; saveBank(bank); refreshAdminBalance();
+  adminSetMsg('操作成功，当前 ' + formatPrice(bank.balance), true);
+}
+function adminReset() {
+  if (!checkAdminCard()) return;
+  if (!confirm('确定重置余额为 ¥100.00？')) return;
+  const bank = getBank(); bank.balance = BANK_INIT_BAL; saveBank(bank);
+  refreshAdminBalance(); adminSetMsg('已重置', true);
+}
+function refreshAdminInfo() {
+  const bank = getBank(), v = getVip(), log = getVipLog();
+  const infoEl = document.getElementById('adminInfoBox');
+  let vipStr = '无';
+  if (v) { if (v.expireAt === null) vipStr = '<span class="v green">✨ 终身 VIP</span>'; else vipStr = '<span class="v green">剩 ' + formatRemaining(v.expireAt).full + '</span>'; }
+  else vipStr = '<span class="v red">非 VIP</span>';
+  const totalSpent = log.filter(e => e.method === 'bank' && typeof e.amount === 'number').reduce((s, e) => s + e.amount, 0);
+  const checkin = getCheckinData();
+  let sleepStr = sleepTimer.endAt ? '<span class="v green">剩 ' + formatSleepRemain(sleepTimer.endAt - Date.now()) + '</span>' : '未设置';
+  let spatialStr = audioEngine.spatialEnabled ? '<span class="v green">开（' + audioEngine.spatialMode + '）</span>' : '关';
+  let enhanceStr = audioEngine.enhanceEnabled ? '<span class="v green">开</span>' : '关';
+  infoEl.innerHTML = '<div><span class="k">存储层：</span>' + STORAGE_DESC[storage.type].name + '</div>' +
+    '<div style="margin-top:10px"><span class="k">余额：</span><span class="v green">' + formatPrice(bank.balance) + '</span></div>' +
+    '<div><span class="k">累计消费：</span><span class="v">' + formatPrice(totalSpent) + '</span></div>' +
+    '<div style="margin-top:10px"><span class="k">当前 VIP：</span>' + vipStr + '</div>' +
+    '<div><span class="k">睡眠定时：</span>' + sleepStr + '</div>' +
+    '<div><span class="k">空间音频：</span>' + spatialStr + '</div>' +
+    '<div><span class="k">音质增强：</span>' + enhanceStr + '</div>' +
+    '<div><span class="k">签到：</span>连续 ' + checkin.streak + ' 天 · 累计 ' + checkin.total + ' 天</div>' +
+    '<div><span class="k">解锁单曲：</span>' + getUnlockedSongs().length + ' 首</div>' +
+    '<div><span class="k">兑换记录：</span>' + log.length + ' 条</div>';
+}
+let genType = 'D';
+document.getElementById('genTypes').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  document.querySelectorAll('#genTypes button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); genType = btn.dataset.type;
+});
+function doGenerate() {
+  const codes = [];
+  for (let i = 0; i < 5; i++) codes.push(generateCode(genType));
+  const resultEl = document.getElementById('genResult');
+  resultEl.innerHTML = codes.map(c => '<div class="gen-code" onclick="copyOne(this, \'' + c + '\')"><span>' + c + '</span><span class="tip">点击复制</span></div>').join('') + '<button class="btn-secondary" onclick="copyAll()">复制全部</button>';
+  resultEl.dataset.codes = codes.join('\n');
+}
+function copyOne(el, code) { navigator.clipboard.writeText(code).then(() => { el.querySelector('.tip').textContent = '✓ 已复制'; setTimeout(() => { el.querySelector('.tip').textContent = '点击复制'; }, 1500); }).catch(() => showToast('复制失败', true)); }
+function copyAll() {
+  const codes = document.getElementById('genResult').dataset.codes || '';
+  navigator.clipboard.writeText(codes).then(() => showToast('已复制 ' + codes.split('\n').length + ' 个')).catch(() => showToast('复制失败', true));
+}
+
+// ======================== 个人中心 ========================
+function getProfileData() { try { const d = JSON.parse(storage.get(PROFILE_KEY) || 'null'); return { name: (d && d.name) ? String(d.name).slice(0, 16) : '音乐用户' }; } catch (e) { return { name: '音乐用户' }; } }
+function saveProfileData(data) { storage.set(PROFILE_KEY, JSON.stringify({ name: String(data.name || '音乐用户').slice(0, 16) })); }
+function getPlayHistory() { try { const a = JSON.parse(storage.get(HISTORY_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function savePlayHistory(list) { storage.set(HISTORY_KEY, JSON.stringify(list.slice(0, 30))); }
+function recordPlayHistory(song) {
+  const s = normalizeSong(song); if (!s || !s.id) return;
+  const key = songKey(s);
+  let list = getPlayHistory().filter(x => songKey(x) !== key);
+  list.unshift({ id: s.id, name: s.name, artist: s.artist, source: s.source, playedAt: Date.now() });
+  savePlayHistory(list);
+}
+function profileVipText() {
+  const v = getVip();
+  if (!v) return { title: '普通用户', sub: '试听模式 · 仅 ' + TRIAL_SECONDS + ' 秒' };
+  if (v.expireAt === null) return { title: '✨ 终身 VIP', sub: '已解锁全站完整播放' };
+  return { title: '✨ VIP 会员', sub: '剩余 ' + formatRemaining(v.expireAt).full };
+}
+function renderProfileList(el, list, emptyText) {
+  if (!list.length) { el.innerHTML = '<div class="profile-empty">' + escapeHtml(emptyText) + '</div>'; return; }
+  el.innerHTML = list.map((song, i) => {
+    const artist = Array.isArray(song.artist) ? song.artist.join(' / ') : (song.artist || '未知歌手');
+    return '<div class="profile-list-row" data-profile-index="' + i + '"><div class="profile-list-icon">' + (i < 3 ? ['①', '②', '③'][i] : '🎵') + '</div><div class="profile-list-info"><div class="profile-list-title">' + escapeHtml(song.name) + '</div><div class="profile-list-sub">' + escapeHtml(artist) + ' · ' + escapeHtml(song.source || '') + '</div></div></div>';
+  }).join('');
+  el.querySelectorAll('.profile-list-row').forEach((row, i) => {
+    row.addEventListener('click', () => {
+      currentListSongs = list.map(normalizeSong);
+      currentQueueIndex = i;
+      closeModal('profileModal');
+      playSong(list[i], null);
+    });
+  });
+}
+function renderProfile() {
+  const profile = getProfileData(), vip = profileVipText();
+  const history = getPlayHistory(), unlocked = getUnlockedSongs(), unlockedDetails = getUnlockedSongDetails();
+  const achievements = getAchievements(), gifts = getGiftData();
+  const detailMap = new Map(unlockedDetails.map(song => [songKey(song), song]));
+  const unlockedList = unlocked.map(key => {
+    const d = detailMap.get(key); if (d) return d;
+    const parts = key.split('_'); const source = parts.pop(); const id = parts.join('_');
+    return { id, name: '已解锁歌曲', artist: ['待刷新'], source, unlockedAt: 0 };
+  });
+  unlockedList.sort((a, b) => (b.unlockedAt || 0) - (a.unlockedAt || 0));
+  document.getElementById('profileName').textContent = profile.name;
+  document.getElementById('profileAvatar').textContent = (profile.name || '音').charAt(0).toUpperCase();
+  document.getElementById('profileSub').textContent = history.length ? '已累计播放 ' + history.length + ' 首' : '开始听歌吧';
+  document.getElementById('profileVipTitle').textContent = vip.title;
+  document.getElementById('profileVipSub').textContent = vip.sub;
+  document.getElementById('profileHistoryCount').textContent = history.length;
+  document.getElementById('profileUnlockCount').textContent = unlocked.length;
+  document.getElementById('profileAchievementCount').textContent = achievements.length + '/' + ACHIEVEMENTS.length;
+  document.getElementById('profileGiftCount').textContent = gifts.length;
+  renderProfileList(document.getElementById('profileHistoryList'), history.slice(0, 8), '还没有播放记录');
+  renderProfileList(document.getElementById('profileUnlockList'), unlockedList.slice(0, 8), '还没有解锁歌曲');
+}
+document.getElementById('profileEditBtn').addEventListener('click', () => {
+  const input = document.getElementById('profileNameInput');
+  input.value = getProfileData().name;
+  document.getElementById('profileSettings').classList.add('show');
+  input.focus(); input.select();
+});
+document.getElementById('profileCancelEdit').addEventListener('click', () => { document.getElementById('profileSettings').classList.remove('show'); });
+document.getElementById('profileSaveEdit').addEventListener('click', () => {
+  const input = document.getElementById('profileNameInput');
+  const name = input.value.trim() || '音乐用户';
+  saveProfileData({ name });
+  document.getElementById('profileSettings').classList.remove('show');
+  renderProfile();
+  showToast('昵称已保存');
+});
+document.getElementById('profileNameInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('profileSaveEdit').click(); } });
+
+// ======================== 初始化 ========================
+renderVipBadge();
+updateQueueButtons();
+updateBackToTopVisibility();
+loadSpatialSettings();
+loadEnhanceSettings();
+updateSpatialBadge();
+updateMenuTick('spatialMenuBtn', false);
+updateMenuTick('enhanceMenuBtn', false);
+updateHifiBadge();
+if (isForeverVip()) {
+  setTimeout(() => { autoUnlockForeverAchievements(); updateBlindBoxPanel(); }, 400);
+}
+if (STORAGE_DESC[storage.type].warn) document.getElementById('storageWarn').classList.add('show');
+console.log('%c音乐播放器 v23.0 · 无损音质版', 'color:#1db954;font-weight:bold');
+console.log('新增：🎚️ 音质增强（EQ + 压缩）+ 无损音源（FLAC）');
+console.log('音质降级链：FLAC 999 → 320K → 192K → 128K');
+console.log('连点标题 5 次 → 管理员密码 admin888 → 进入后台');
+</script>
+</body>
+</html>
