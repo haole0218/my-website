@@ -328,6 +328,108 @@
   #confirmModalBody { font-size: 14px; line-height: 1.9; color: #ccc; padding: 6px 0 14px; }
   #confirmModalBody .big-price { font-size: 24px; font-weight: 700; color: #1db954; font-family: 'SF Mono', Menlo, Consolas, monospace; display: block; margin: 8px 0 12px; }
   #confirmModalBody .row { font-size: 12px; color: #888; margin-top: 4px; }
+  .lyric-panel {
+    position: fixed; inset: 0; background: rgba(0,0,0,.85);
+    display: none; z-index: 150;
+  }
+  .lyric-panel.show { display: flex; justify-content: center; }
+  .lyric-panel-inner {
+    width: 100%; max-width: 600px; height: 100%;
+    display: flex; flex-direction: column; background: #0f0f1a;
+  }
+  .lyric-panel-header {
+    padding: 14px 20px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #26263a; flex-shrink: 0;
+  }
+  .lyric-panel-title {
+    font-size: 14px; color: #1db954; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 85%;
+  }
+  .lyric-close {
+    background: none; border: none; color: #888; font-size: 22px;
+    cursor: pointer; padding: 0 8px; line-height: 1;
+  }
+  .lyric-close:hover { color: #fff; }
+  .lyric-panel-body {
+    flex: 1; overflow-y: auto;
+    padding: 30vh 30px 40vh; scroll-behavior: smooth;
+  }
+  .lyric-row {
+    font-size: 15px; line-height: 2; color: #555;
+    text-align: center; padding: 5px 0;
+    transition: color .25s, font-size .25s, transform .25s;
+    cursor: pointer;
+  }
+  .lyric-row:hover { color: #999; }
+  .lyric-row.active {
+    color: #1db954; font-size: 17px; font-weight: 600;
+    transform: scale(1.04);
+  }
+  .lyric-empty { text-align: center; color: #555; padding: 40px 20px; font-size: 14px; }
+
+  /* 个人中心 */
+  .profile-modal-box { max-width: 520px; }
+  .profile-hero {
+    display: flex; align-items: center; gap: 14px; padding: 16px;
+    background: linear-gradient(135deg, #17172b, #20203a);
+    border: 1px solid #2d2d46; border-radius: 14px; margin-bottom: 12px;
+  }
+  .profile-avatar {
+    width: 58px; height: 58px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1db954, #159447);
+    color: #061108; font-size: 27px; font-weight: 800;
+    box-shadow: 0 5px 18px rgba(29,185,84,.22);
+  }
+  .profile-main { min-width: 0; flex: 1; }
+  .profile-name { font-size: 18px; font-weight: 700; color: #fff; }
+  .profile-sub { font-size: 12px; color: #888; margin-top: 4px; }
+  .profile-edit-btn {
+    padding: 6px 10px; border: 1px solid #444; border-radius: 8px;
+    background: transparent; color: #aaa; cursor: pointer; font-size: 12px;
+  }
+  .profile-edit-btn:hover { color: #fff; border-color: #666; }
+  .profile-vip-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 14px; border-radius: 12px; margin-bottom: 12px;
+    background: #0f0f1a; border: 1px solid #26263a;
+  }
+  .profile-vip-title { font-size: 13px; font-weight: 700; }
+  .profile-vip-sub { font-size: 11px; color: #777; margin-top: 3px; }
+  .profile-mini-btn {
+    border: 1px solid #1db954; color: #1db954; background: transparent;
+    padding: 7px 11px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  .profile-mini-btn:hover { background: #1db954; color: #000; }
+  .profile-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; margin-bottom: 14px; }
+  .profile-stat {
+    background: #14142a; border: 1px solid #24243a; border-radius: 10px;
+    padding: 10px 5px; text-align: center;
+  }
+  .profile-stat .num { font-size: 17px; font-weight: 700; color: #fff; }
+  .profile-stat .label { font-size: 10px; color: #777; margin-top: 3px; }
+  .profile-section { margin-top: 12px; }
+  .profile-section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .profile-section-head h3 { font-size: 13px; color: #ddd; }
+  .profile-section-head span { font-size: 10px; color: #666; }
+  .profile-list { display: flex; flex-direction: column; gap: 5px; max-height: 190px; overflow-y: auto; }
+  .profile-list-row {
+    display: flex; align-items: center; gap: 9px; padding: 9px 10px;
+    border-radius: 9px; background: #14142a; cursor: pointer; transition: background .15s;
+  }
+  .profile-list-row:hover { background: #1d1d35; }
+  .profile-list-icon { width: 28px; text-align: center; font-size: 15px; flex-shrink: 0; }
+  .profile-list-info { flex: 1; min-width: 0; }
+  .profile-list-title { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ddd; }
+  .profile-list-sub { font-size: 10px; color: #666; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .profile-empty { padding: 16px; text-align: center; color: #555; font-size: 12px; background: #14142a; border-radius: 9px; }
+  .profile-settings { display: none; margin-top: 12px; padding: 12px; background: #14142a; border-radius: 10px; border: 1px solid #24243a; }
+  .profile-settings.show { display: block; }
+  .profile-field-label { font-size: 11px; color: #888; margin-bottom: 6px; }
+  .profile-name-input { text-align: left !important; font-family: inherit !important; letter-spacing: 0 !important; }
+  .profile-footer { display:flex; justify-content:space-between; gap:8px; margin-top:14px; }
   @media (max-width: 480px) {
     .container { padding: 20px 14px 150px; }
     h1 { font-size: 17px; }
@@ -652,6 +754,63 @@
   </div>
 </div>
 
+<!-- 个人中心 -->
+<div class="modal" id="profileModal">
+  <div class="modal-box profile-modal-box">
+    <h2>👤 个人中心</h2>
+    <p class="hint">你的音乐资料、会员和使用记录</p>
+
+    <div class="profile-hero">
+      <div class="profile-avatar" id="profileAvatar">🎵</div>
+      <div class="profile-main">
+        <div class="profile-name" id="profileName">音乐用户</div>
+        <div class="profile-sub" id="profileSub">来到这里，开始听歌吧</div>
+      </div>
+      <button class="profile-edit-btn" id="profileEditBtn">编辑</button>
+    </div>
+
+    <div class="profile-vip-card">
+      <div>
+        <div class="profile-vip-title" id="profileVipTitle">普通用户</div>
+        <div class="profile-vip-sub" id="profileVipSub">试听模式 · 30 秒</div>
+      </div>
+      <button class="profile-mini-btn" onclick="closeModal('profileModal'); openModal('redeemModal')">会员中心</button>
+    </div>
+
+    <div class="profile-stats">
+      <div class="profile-stat"><div class="num" id="profileHistoryCount">0</div><div class="label">播放记录</div></div>
+      <div class="profile-stat"><div class="num" id="profileUnlockCount">0</div><div class="label">已解锁</div></div>
+      <div class="profile-stat"><div class="num" id="profileAchievementCount">0</div><div class="label">成就</div></div>
+      <div class="profile-stat"><div class="num" id="profileGiftCount">0</div><div class="label">打赏次数</div></div>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-section-head"><h3>最近播放</h3><span>点击歌曲可再次播放</span></div>
+      <div class="profile-list" id="profileHistoryList"></div>
+    </div>
+
+    <div class="profile-section">
+      <div class="profile-section-head"><h3>已解锁歌曲</h3><span>永久权限</span></div>
+      <div class="profile-list" id="profileUnlockList"></div>
+    </div>
+
+    <div class="profile-settings" id="profileSettings">
+      <div class="profile-field-label">昵称</div>
+      <input class="profile-name-input" id="profileNameInput" maxlength="16" placeholder="输入你的昵称">
+      <div class="modal-actions" style="margin-top:10px">
+        <button class="btn-secondary" id="profileCancelEdit">取消</button>
+        <button class="btn-primary" id="profileSaveEdit">保存</button>
+      </div>
+    </div>
+
+    <div class="profile-footer">
+      <button class="btn-secondary" onclick="closeModal('profileModal'); renderWalletBalance(); openModal('walletModal')">💰 我的钱包</button>
+      <button class="btn-secondary" onclick="closeModal('profileModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- 打赏 -->
 <div class="modal" id="giftModal">
   <div class="modal-box">
@@ -868,6 +1027,7 @@ const PAY_OPTIONS = [
 const PRICE_MAP = {};
 PAY_OPTIONS.forEach(o => { PRICE_MAP[o.type] = o.price; });
 const CONFIRM_THRESHOLD = 50;
+// 仅供本地自用；纯前端站点无法隐藏该凭据，勿用于真实账户安全。
 const ADMIN_PASSWORD = 'admin888';
 const CHECKIN_BASE = 0.5;
 const CHECKIN_BONUS7 = 5;
@@ -2638,7 +2798,7 @@ if (STORAGE_DESC[storage.type].warn) document.getElementById('storageWarn').clas
 console.log('%c音乐播放器 v23.0 · 无损音质版', 'color:#1db954;font-weight:bold');
 console.log('新增：🎚️ 音质增强（EQ + 压缩）+ 无损音源（FLAC）');
 console.log('音质降级链：FLAC 999 → 320K → 192K → 128K');
-console.log('连点标题 5 次 → 管理员密码 admin888 → 进入后台');
+console.log('管理员入口：连点标题 5 次后进入本地管理员验证');
 </script>
 </body>
 </html>
