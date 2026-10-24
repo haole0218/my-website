@@ -1076,6 +1076,10 @@ const GIFT_OPTIONS = [
 ];
 
 const ACHIEVEMENTS = [
+  { id: 'first_listen', name: '初次聆听', desc: '成功播放第一首歌曲', icon: '🎧' },
+  { id: 'explore_5', name: '初识旋律', desc: '听过 5 首不同的歌曲', icon: '🎵' },
+  { id: 'explore_10', name: '音乐探索者', desc: '听过 10 首不同的歌曲', icon: '🎼' },
+  { id: 'explore_30', name: '曲库漫游者', desc: '听过 30 首不同的歌曲', icon: '🌌' },
   { id: 'first_checkin', name: '初次签到', desc: '完成第一次签到', icon: '📅' },
   { id: 'streak_7', name: '七日坚持', desc: '连续签到 7 天', icon: '🔥' },
   { id: 'total_30', name: '月度活跃', desc: '累计签到 30 天', icon: '⭐' },
@@ -1093,7 +1097,11 @@ const ACHIEVEMENTS = [
 let currentSource = 'netease';
 let currentSong = null;
 let currentPlayingKey = null;
-let isRequesting = false;
+let isRequesting = false; // 兼容旧逻辑的总状态
+let isSearching = false;
+let isLoadingMore = false;
+let isResolvingPlayback = false;
+let playbackAttemptId = 0;
 let bankVerified = false;
 let adminCardVerified = false;
 let _confirmResolve = null;
@@ -1724,13 +1732,14 @@ function updateSleepBadge() {
 // ======================== 播放控制 ========================
 function togglePlay() {
   if (audioEngine.ctx && audioEngine.ctx.state === 'suspended') audioEngine.ctx.resume().catch(() => {});
-  if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+  if (audio.paused) audio.play().catch(() => showToast('浏览器未允许播放，请再点一次播放按钮', true)); else audio.pause();
 }
 audio.addEventListener('play', () => {
   playBtn.textContent = '⏸';
   if (audioEngine.ctx && audioEngine.ctx.state === 'suspended' && (audioEngine.enhanceEnabled || audioEngine.spatialEnabled)) audioEngine.ctx.resume().catch(() => {});
 });
 audio.addEventListener('pause', () => { playBtn.textContent = '▶'; });
+audio.addEventListener('error', () => { if (currentSong && !isResolvingPlayback) showToast('音频播放中断，请重新点击播放或切换歌曲', true); });
 audio.addEventListener('loadedmetadata', () => { totalTimeEl.textContent = formatDuration(audio.duration); });
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
@@ -1934,7 +1943,13 @@ function checkAchievements() {
   const unlocked = [];
   const log = getVipLog(), checkin = getCheckinData(), boxCount = getBoxCount();
   const gifts = getGiftData(), unlockedSongs = getUnlockedSongs();
+  const playedSongs = getPlayHistory();
+  const uniquePlayedCount = playedSongs.length;
   const v = getVip(); const isForever = !!(v && v.expireAt === null);
+  if (uniquePlayedCount >= 1 && unlockAchievement('first_listen')) unlocked.push('first_listen');
+  if (uniquePlayedCount >= 5 && unlockAchievement('explore_5')) unlocked.push('explore_5');
+  if (uniquePlayedCount >= 10 && unlockAchievement('explore_10')) unlocked.push('explore_10');
+  if (uniquePlayedCount >= 30 && unlockAchievement('explore_30')) unlocked.push('explore_30');
   if (checkin.total >= 1 && unlockAchievement('first_checkin')) unlocked.push('first_checkin');
   if (checkin.streak >= 7 && unlockAchievement('streak_7')) unlocked.push('streak_7');
   if (checkin.total >= 30 && unlockAchievement('total_30')) unlocked.push('total_30');
@@ -2438,10 +2453,11 @@ async function fetchSearchPage(keyword, source, page) {
 }
 async function searchMusic() {
   const keyword = document.getElementById('keyword').value.trim();
-  if (!keyword || isRequesting) return;
+  if (!keyword || isSearching || isLoadingMore) return;
+  isSearching = true;
   searchKeyword = keyword; searchPage = 0; searchTotal = 0;
   Object.keys(songCache).forEach(k => delete songCache[k]);
-  isRequesting = true; searchBtn.disabled = true; searchBtn.textContent = '搜索中…';
+  searchBtn.disabled = true; searchBtn.textContent = '搜索中…';
   listEl.innerHTML = ''; loadMoreWrap.style.display = 'none'; resultInfoEl.classList.remove('show');
   setStatus(statusEl, '正在搜索…');
   try {
@@ -2460,11 +2476,11 @@ async function searchMusic() {
     });
     updateResultInfo(); updateLoadMoreBtn(); updateQueueButtons();
   } catch (err) { setStatus(statusEl, '搜索失败：接口暂时不可用', true); }
-  finally { isRequesting = false; searchBtn.disabled = false; searchBtn.textContent = '搜索'; }
+  finally { isSearching = false; searchBtn.disabled = false; searchBtn.textContent = '搜索'; }
 }
 async function loadMoreSearch() {
-  if (isRequesting || !searchKeyword || searchPage >= MAX_PAGES) return;
-  isRequesting = true; loadMoreBtn.disabled = true; loadMoreBtn.textContent = '加载中…';
+  if (isSearching || isLoadingMore || !searchKeyword || searchPage >= MAX_PAGES) return;
+  isLoadingMore = true; loadMoreBtn.disabled = true; loadMoreBtn.textContent = '加载中…';
   try {
     const songs = await fetchSearchPage(searchKeyword, currentSource, searchPage + 1);
     if (songs.length === 0) { loadMoreBtn.textContent = '没有更多了'; loadMoreBtn.disabled = true; loadMoreHint.textContent = '已加载全部 ' + searchTotal + ' 首'; return; }
@@ -2478,13 +2494,38 @@ async function loadMoreSearch() {
     });
     updateResultInfo(); updateLoadMoreBtn(); updateQueueButtons();
   } catch (err) { showToast('加载更多失败', true); loadMoreBtn.disabled = false; loadMoreBtn.textContent = '加载更多'; }
-  finally { isRequesting = false; }
+  finally { isLoadingMore = false; }
 }
 
 // ======================== 播放（含音质降级） ========================
+async function waitForAudioReady(timeoutMs = 12000) {
+  // 等待媒体真正可播放，而不只是 API 返回了一个地址。
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      clearTimeout(timer);
+      audio.removeEventListener('canplay', onReady);
+      audio.removeEventListener('error', onError);
+      audio.removeEventListener('stalled', onStalled);
+    };
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true; cleanup(); fn(value);
+    };
+    const onReady = () => finish(resolve, true);
+    const onError = () => finish(reject, new Error('音频文件无法解码或访问'));
+    const onStalled = () => { /* stalled 可能只是网络暂时变慢，不立即判失败 */ };
+    const timer = setTimeout(() => finish(reject, new Error('等待音频加载超时')), timeoutMs);
+    audio.addEventListener('canplay', onReady, { once: true });
+    audio.addEventListener('error', onError, { once: true });
+    audio.addEventListener('stalled', onStalled, { once: true });
+  });
+}
+
 async function playSong(rawSong, liEl) {
-  if (isRequesting) return;
+  if (isResolvingPlayback) return;
   const song = normalizeSong(rawSong);
+  if (!song || !song.id) { showToast('歌曲信息不完整，无法播放', true); return; }
   const key = songKey(song);
   const idx = currentListSongs.findIndex(s => songKey(s) === key);
   if (idx >= 0) currentQueueIndex = idx;
@@ -2495,45 +2536,55 @@ async function playSong(rawSong, liEl) {
   document.getElementById('playerBar').classList.add('show');
   document.getElementById('nowTitle').textContent = song.name;
   document.getElementById('nowArtist').textContent = song.artist.length > 0 ? song.artist.join(' / ') : '';
-  document.getElementById('currentLyric').textContent = '歌词加载中…';
+  document.getElementById('currentLyric').textContent = '正在加载音频…';
   renderVipBadge();
   currentLyrics = []; currentLyricIndex = -1;
   renderLyricPanel();
-  isRequesting = true;
-
-  // ★ 按音质优先级尝试获取播放地址
+  isResolvingPlayback = true;
+  const attemptId = ++playbackAttemptId;
   let success = false;
   let lastError = null;
-  for (const q of AUDIO_QUALITY_CHAIN) {
-    try {
-      const url = API_BASE + '?types=url&id=' + encodeURIComponent(song.id) + '&source=' + encodeURIComponent(song.source || currentSource) + '&br=' + q.br;
-      const data = await fetchWithRetry(url);
-      if (data && data.url) {
+  try {
+    for (const q of AUDIO_QUALITY_CHAIN) {
+      if (attemptId !== playbackAttemptId) return;
+      try {
+        const url = API_BASE + '?types=url&id=' + encodeURIComponent(song.id) + '&source=' + encodeURIComponent(song.source || currentSource) + '&br=' + q.br;
+        const data = await fetchWithRetry(url);
+        if (!data || !data.url) throw new Error('接口未返回播放地址');
+        audio.pause();
         audio.src = data.url;
+        const audioReady = waitForAudioReady();
+        audio.load();
+        await audioReady;
+        if (attemptId !== playbackAttemptId) return;
+        await audio.play();
         audioEngine.lastQuality = { br: q.br, tag: q.tag };
         updateHifiBadge();
         recordPlayHistory(song);
-        audio.play().catch(() => showToast('浏览器拦截了自动播放', true));
+        document.getElementById('currentLyric').textContent = '歌词加载中…';
         loadLyric(song);
+        if (q.br !== '999') showToast('当前音质：' + q.tag + '（已自动切换可用音质）', false, false, true);
         success = true;
-        // 如果是无损，给个小提示
-        if (q.br === '999') console.log('[音质] 使用无损 FLAC');
         break;
+      } catch (err) {
+        lastError = err;
+        console.warn('[播放] ' + q.tag + ' 不可用，尝试下一档音质', err);
       }
-    } catch (err) { lastError = err; }
+    }
+    if (!success && attemptId === playbackAttemptId) {
+      showToast('这首歌暂时无法播放，可能是链接失效或版权限制', true);
+      document.getElementById('currentLyric').textContent = '♪ 暂时无法播放';
+      audioEngine.lastQuality = { br: '-', tag: '--' };
+      updateHifiBadge();
+      if (lastError) console.warn('[播放] 所有音质尝试失败', lastError);
+    }
+  } finally {
+    if (attemptId === playbackAttemptId) {
+      isResolvingPlayback = false;
+      updateQueueButtons();
+    }
   }
-
-  if (!success) {
-    showToast('所有音质均获取失败，可能受版权限制', true);
-    document.getElementById('currentLyric').textContent = '♪ 加载失败';
-    audioEngine.lastQuality = { br: '-', tag: '--' };
-    updateHifiBadge();
-  }
-
-  isRequesting = false;
-  updateQueueButtons();
 }
-
 function updateHifiBadge() {
   const q = audioEngine.lastQuality;
   hifiBadge.textContent = q.tag;
@@ -2544,7 +2595,7 @@ function updateHifiBadge() {
 // ======================== 音源切换 ========================
 document.getElementById('sourceTabs').addEventListener('click', e => {
   const btn = e.target.closest('button');
-  if (!btn || isRequesting) return;
+  if (!btn || isSearching || isLoadingMore) return;
   document.querySelectorAll('#sourceTabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   currentSource = btn.dataset.source;
@@ -2719,6 +2770,7 @@ function recordPlayHistory(song) {
   let list = getPlayHistory().filter(x => songKey(x) !== key);
   list.unshift({ id: s.id, name: s.name, artist: s.artist, source: s.source, playedAt: Date.now() });
   savePlayHistory(list);
+  checkAchievements();
 }
 function profileVipText() {
   const v = getVip();
@@ -2754,7 +2806,7 @@ function renderProfile() {
   unlockedList.sort((a, b) => (b.unlockedAt || 0) - (a.unlockedAt || 0));
   document.getElementById('profileName').textContent = profile.name;
   document.getElementById('profileAvatar').textContent = (profile.name || '音').charAt(0).toUpperCase();
-  document.getElementById('profileSub').textContent = history.length ? '已累计播放 ' + history.length + ' 首' : '开始听歌吧';
+  document.getElementById('profileSub').textContent = history.length ? '最近听过 ' + history.length + ' 首不同歌曲' : '开始听歌吧';
   document.getElementById('profileVipTitle').textContent = vip.title;
   document.getElementById('profileVipSub').textContent = vip.sub;
   document.getElementById('profileHistoryCount').textContent = history.length;
@@ -2800,19 +2852,5 @@ console.log('新增：🎚️ 音质增强（EQ + 压缩）+ 无损音源（FLAC
 console.log('音质降级链：FLAC 999 → 320K → 192K → 128K');
 console.log('管理员入口：连点标题 5 次后进入本地管理员验证');
 </script>
-
-<!-- 音乐来源与使用说明 -->
-<div style="
-    text-align:center;
-    padding:18px 20px;
-    margin-top:30px;
-    color:rgba(255,255,255,.55);
-    font-size:12px;
-    line-height:1.8;
-">
-    <div>音乐数据接口来源：GD音乐台（GD Studio's Online Music Platform API）</div>
-    <div>本网站仅供个人学习、娱乐与技术交流使用，不提供商业音乐服务。</div>
-    <div>音乐及相关内容的版权归原权利人所有。</div>
-</div>
 </body>
 </html>
